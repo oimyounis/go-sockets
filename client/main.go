@@ -1,8 +1,8 @@
 package main
 
 import (
+	"go-tcp/client/client"
 	"log"
-	"tcp/client/client"
 	"time"
 )
 

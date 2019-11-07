@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
+	"go-tcp/server/server"
 	"log"
-	"tcp/server/server"
 	"time"
 )
 
