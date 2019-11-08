@@ -1,30 +1,39 @@
 package main
 
 import (
+	"fmt"
 	"go-tcp/client/client"
 	"log"
 	"time"
 )
 
 func main() {
-	client := client.NewWithEvents("localhost:9090", func(socket *client.Socket) {
+	c := client.New("localhost:9090")
+
+	c.OnConnect(func(socket *client.Socket) {
 		log.Println("connected to server")
 
-		socket.On("remove-user-ack", func(data string) {
-			log.Printf("remove-user-ack:%v", data)
+		socket.On("pong", func(data string) {
+			log.Printf("pong:%v", data)
 		})
-
-		socket.EmitSync("add-user", "id:9,name:omar,age:26,awesome:yes")
+		socket.On("pong2", func(data string) {
+			log.Printf("pong2:%v", data)
+		})
+		socket.On("pong3", func(data string) {
+			log.Printf("pong3:%v", data)
+		})
 
 		go func() {
 			for {
-				socket.EmitSync("remove-user", "id:9")
+				socket.EmitSync("ping", fmt.Sprintf("%v", time.Now().Unix()))
 				time.Sleep(time.Second)
 			}
 		}()
-	}, func(socket *client.Socket) {
+	})
+
+	c.OnDisconnect(func(socket *client.Socket) {
 		log.Println("disconnected from server")
 	})
 
-	client.Listen()
+	c.Listen()
 }

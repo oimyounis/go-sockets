@@ -8,20 +8,21 @@ import (
 )
 
 func main() {
-	srv := server.NewWithEvents(":9090", func(socket *server.Socket) {
+	srv := server.New(":9090")
+
+	srv.OnConnect(func(socket *server.Socket) {
 		log.Printf("socket connected with id: %v\n", socket.Id)
 
-		socket.On("add-user", func(socket *server.Socket, data string) {
-			log.Println("message received on event: add-user")
-			log.Println("with data " + data)
-		})
+		socket.On("ping", func(socket *server.Socket, data string) {
+			log.Println("message received on event: ping: " + data)
 
-		socket.On("remove-user", func(socket *server.Socket, data string) {
-			log.Println("message received on event: remove-user")
-			log.Println("with data " + data)
-			socket.Emit("remove-user-ack", fmt.Sprintf("%v", time.Now().Unix()))
+			socket.Emit("pong", fmt.Sprintf("%v", time.Now().Unix()))
+			socket.Emit("pong2", fmt.Sprintf("%v", time.Now().Unix()))
+			socket.Emit("pong3", fmt.Sprintf("%v", time.Now().Unix()))
 		})
-	}, func(socket *server.Socket) {
+	})
+
+	srv.OnDisconnect(func(socket *server.Socket) {
 		log.Printf("socket disconnected with id: %v\n", socket.Id)
 	})
 

@@ -11,6 +11,9 @@ import (
 	"github.com/google/uuid"
 )
 
+const DELIMITER = "§"
+const DELIMITER_LENGTH = len(DELIMITER)
+
 type ConnectionHandler func(socket *Socket)
 type MessageHandler func(socket *Socket, data string)
 
@@ -42,9 +45,9 @@ func (s *Server) Start() {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			log.Printf("Couldn't accept connection: %v\n", err)
-			break
+		} else {
+			go s.handleConnection(conn)
 		}
-		go s.handleConnection(conn)
 	}
 }
 
@@ -65,11 +68,11 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 		go func() {
 			message := strings.TrimSpace(recv)
-			if strings.Contains(message, "§") {
-				delimIdx := strings.Index(message, "§")
+			if strings.Contains(message, DELIMITER) {
+				delimIdx := strings.Index(message, DELIMITER)
 				event := message[:delimIdx]
 				if handler, ok := socket.events[event]; ok {
-					data := message[delimIdx+2:]
+					data := message[delimIdx+DELIMITER_LENGTH:]
 					if strings.Contains(data, "\n") {
 						data = strings.ReplaceAll(data, "\\n", "\n")
 					}
@@ -82,12 +85,21 @@ func (s *Server) handleConnection(conn net.Conn) {
 	s.disconnectEvent(socket)
 }
 
+func (s *Server) OnConnect(handler ConnectionHandler) {
+	s.connectEvent = handler
+}
+
+func (s *Server) OnDisconnect(handler ConnectionHandler) {
+	s.disconnectEvent = handler
+}
+
 func (s *Socket) On(event string, callback MessageHandler) {
 	s.events[event] = callback
 }
 
 func (s *Socket) EmitSync(event, data string) {
 	emit(s, event, data)
+	time.Sleep(time.Millisecond * 5)
 }
 
 func (s *Socket) Emit(event, data string) {
@@ -95,11 +107,11 @@ func (s *Socket) Emit(event, data string) {
 }
 
 func emit(socket *Socket, event, data string) {
+	// time.Sleep(time.Millisecond * 10)
 	if strings.Contains(data, "\n") {
 		data = strings.ReplaceAll(data, "\n", "\\n")
 	}
-	fmt.Fprintf(socket.connection, fmt.Sprintf("%v§%v\n", event, data))
-	time.Sleep(time.Millisecond * 10)
+	socket.connection.Write([]byte(fmt.Sprintf("%v%v%v\n", event, DELIMITER, data)))
 }
 
 func New(address string) *Server {
@@ -108,14 +120,5 @@ func New(address string) *Server {
 		log.Fatalf("Failed to start server: %v\n", err)
 	}
 	s := &Server{listener: l, sockets: map[string]*Socket{}, connectEvent: func(socket *Socket) {}, disconnectEvent: func(socket *Socket) {}}
-	return s
-}
-
-func NewWithEvents(address string, onConnect ConnectionHandler, onDisconnect ConnectionHandler) *Server {
-	l, err := net.Listen("tcp", address)
-	if err != nil {
-		log.Fatalf("Failed to start server: %v\n", err)
-	}
-	s := &Server{listener: l, sockets: map[string]*Socket{}, connectEvent: onConnect, disconnectEvent: onDisconnect}
 	return s
 }
