@@ -5,21 +5,23 @@ import (
 	"log"
 	"time"
 
-	"github.com/oimyounis/go-sockets/server"
+	"go-sockets/server"
 )
 
 func main() {
-	srv := server.New(":9090")
+	srv, err := server.New(":9090")
+
+	if err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
 
 	srv.OnConnect(func(socket *server.Socket) {
 		log.Printf("socket connected with id: %v\n", socket.Id)
 
-		socket.On("ping", func(socket *server.Socket, data string) {
+		socket.On("ping", func(data string) {
 			log.Println("message received on event: ping: " + data)
 
 			socket.Emit("pong", fmt.Sprintf("%v", time.Now().Unix()))
-			socket.Emit("pong2", fmt.Sprintf("%v", time.Now().Unix()))
-			socket.Emit("pong3", fmt.Sprintf("%v", time.Now().Unix()))
 		})
 	})
 

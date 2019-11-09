@@ -5,23 +5,21 @@ import (
 	"log"
 	"time"
 
-	"github.com/oimyounis/go-sockets/client"
+	"go-sockets/client"
 )
 
 func main() {
-	c := client.New("localhost:9090")
+	c, err := client.New("localhost:9090")
+
+	if err != nil {
+		log.Fatalf("Couldn't connect to server: %v", err)
+	}
 
 	c.OnConnect(func(socket *client.Socket) {
 		log.Println("connected to server")
 
 		socket.On("pong", func(data string) {
 			log.Printf("pong:%v", data)
-		})
-		socket.On("pong2", func(data string) {
-			log.Printf("pong2:%v", data)
-		})
-		socket.On("pong3", func(data string) {
-			log.Printf("pong3:%v", data)
 		})
 
 		go func() {
