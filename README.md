@@ -24,13 +24,19 @@ go get -u github.com/oimyounis/go-sockets
 1. Import go-sockets server  
 ```go
 import (
+    // ...
     "github.com/oimyounis/go-sockets/server"
+    // ...
 )
 ```
 
 2. Initialize a new server instance
 ```go
-srv := server.New(":9090")
+srv, err := server.New(":8000")
+
+if err != nil {
+    log.Fatalf("Failed to start server: %v", err)
+}
 ```
 ***New*** takes a single argument, ***address*** that the server will listen on in the format *\<hostname_or_IP\>:\<port\>*. For example: *127.0.0.1:9000*.
 
@@ -39,7 +45,7 @@ srv := server.New(":9090")
 srv.OnConnect(func(socket *server.Socket) {
     log.Printf("socket connected with id: %v\n", socket.Id)
 
-    socket.On("ping", func(socket *server.Socket, data string) {
+    socket.On("ping", func(data string) {
         log.Println("message received on event: ping: " + data)
 
         socket.Emit("pong", fmt.Sprintf("%v", time.Now().Unix()))
@@ -60,13 +66,19 @@ srv.Start()
 1. Import go-sockets client  
 ```go
 import (
+    // ...
     "github.com/oimyounis/go-sockets/client"
+    // ...
 )
 ```
 
 2. Initialize a new client instance
 ```go
-c := client.New("localhost:9090")
+c, err := client.New("localhost:8000")
+
+if err != nil {
+    log.Fatalf("Couldn't connect to server: %v", err)
+}
 ```
 Same as with the server, ***New*** takes a single argument, ***address*** that points to the server's address in the format *\<hostname_or_IP\>:\<port\>*. For example: *127.0.0.1:9000*.
 
@@ -95,7 +107,7 @@ Here we setup an event handler that will fire when the client connects to the se
 ```go
 c.Listen()
 ```
-***Start*** blocks the current thread listening for data.
+***Listen*** blocks the current thread listening for data.
 
 ## Contribution
 All contributions are welcome.  
