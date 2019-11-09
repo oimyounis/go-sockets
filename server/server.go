@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"regexp"
 	"strings"
 	"time"
 
@@ -14,8 +15,10 @@ import (
 const DELIMITER = "§"
 const DELIMITER_LENGTH = len(DELIMITER)
 
+var delimiterRegex *regexp.Regexp = regexp.MustCompile(`(.*[^\\])§((.*\n?.*)*)`)
+
 type ConnectionHandler func(socket *Socket)
-type MessageHandler func(socket *Socket, data string)
+type MessageHandler func(data string)
 
 type Socket struct {
 	Id         string
@@ -56,32 +59,45 @@ func (s *Server) handleConnection(conn net.Conn) {
 	socket := s.addSocket(conn)
 	s.connectEvent(socket)
 
+	sockBuffer := bufio.NewReader(conn)
+
 	for {
-		recv, err := bufio.NewReader(conn).ReadString('\n')
+		recv, err := sockBuffer.ReadString('\x00')
 		if err != nil {
 			// log.Printf("Socket %v disconnected\n", socket.uid)
-			if _, ok := s.sockets[socket.Id]; ok {
-				delete(s.sockets, socket.Id)
-			}
 			break
 		}
 
 		go func() {
 			message := strings.TrimSpace(recv)
 			if strings.Contains(message, DELIMITER) {
-				delimIdx := strings.Index(message, DELIMITER)
-				event := message[:delimIdx]
-				if handler, ok := socket.events[event]; ok {
-					data := message[delimIdx+DELIMITER_LENGTH:]
-					if strings.Contains(data, "\n") {
-						data = strings.ReplaceAll(data, "\\n", "\n")
+				parts := delimiterRegex.FindAllStringSubmatch(message, 2)
+				if len(parts) == 1 && len(parts[0]) >= 3 {
+					event := parts[0][1]
+
+					if strings.Contains(event, "\\"+DELIMITER) {
+						event = strings.ReplaceAll(event, "\\"+DELIMITER, DELIMITER)
 					}
-					go handler(socket, data)
+
+					if handler, ok := socket.events[event]; ok {
+						data := parts[0][2]
+
+						if strings.Contains(data, "\\"+DELIMITER) {
+							data = strings.ReplaceAll(data, "\\"+DELIMITER, DELIMITER)
+						}
+
+						go handler(data)
+					}
+				} else {
+					log.Printf("Received a malformed message: %v\n", message)
 				}
 			}
 		}()
 	}
 	conn.Close()
+	if _, ok := s.sockets[socket.Id]; ok {
+		delete(s.sockets, socket.Id)
+	}
 	s.disconnectEvent(socket)
 }
 
@@ -107,18 +123,28 @@ func (s *Socket) Emit(event, data string) {
 }
 
 func emit(socket *Socket, event, data string) {
-	// time.Sleep(time.Millisecond * 10)
-	if strings.Contains(data, "\n") {
-		data = strings.ReplaceAll(data, "\n", "\\n")
+	if strings.Contains(data, DELIMITER) {
+		data = strings.ReplaceAll(data, DELIMITER, "\\"+DELIMITER)
 	}
-	socket.connection.Write([]byte(fmt.Sprintf("%v%v%v\n", event, DELIMITER, data)))
+	if strings.ContainsRune(data, '\x00') {
+		data = strings.ReplaceAll(data, "\x00", "\x01")
+	}
+	if strings.Contains(event, DELIMITER) {
+		event = strings.ReplaceAll(event, DELIMITER, "\\"+DELIMITER)
+	}
+	if strings.ContainsRune(event, '\x00') {
+		event = strings.ReplaceAll(event, "\x00", "\x01")
+	}
+	packet := []byte(fmt.Sprintf("%v%v%v", event, DELIMITER, data))
+	packet = append(packet, '\x00')
+	socket.connection.Write(packet)
 }
 
-func New(address string) *Server {
+func New(address string) (*Server, error) {
 	l, err := net.Listen("tcp", address)
 	if err != nil {
-		log.Fatalf("Failed to start server: %v\n", err)
+		return nil, err
 	}
-	s := &Server{listener: l, sockets: map[string]*Socket{}, connectEvent: func(socket *Socket) {}, disconnectEvent: func(socket *Socket) {}}
-	return s
+
+	return &Server{listener: l, sockets: map[string]*Socket{}, connectEvent: func(socket *Socket) {}, disconnectEvent: func(socket *Socket) {}}, nil
 }
