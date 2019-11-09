@@ -1,8 +1,8 @@
-# go-tcp
-go-tcp is an event-driven TCP sockets framework that allows you to create a server/client architecture with ease based on named events.
+# go-sockets
+go-sockets is an event-driven TCP sockets framework that allows you to create a server/client architecture with ease based on named events.
 
 ## Project Status
-go-tcp is currently in an early development stage and is not ready for production use, yet.
+go-sockets is currently in an early development stage and is not ready for production use, yet.
 
 ## Installation
 ### Dependencies
@@ -11,20 +11,20 @@ Execute the following command in your Terminal:
 go get -u github.com/google/uuid
 ```
 
-### Download go-tcp
+### Download go-sockets
 Execute the following command in your Terminal:
 ```bash
-go get -u github.com/oimyounis/go-tcp
+go get -u github.com/oimyounis/go-sockets
 ```
 
 ## Hello World
 ### Building the server
 
 **main.go**  
-1. Import go-tcp server  
+1. Import go-sockets server  
 ```go
 import (
-    "github.com/oimyounis/go-tcp/server"
+    "github.com/oimyounis/go-sockets/server"
 )
 ```
 
@@ -57,10 +57,10 @@ srv.Start()
 ### Building the client
 
 **main.go**  
-1. Import go-tcp client  
+1. Import go-sockets client  
 ```go
 import (
-    "github.com/oimyounis/go-tcp/client"
+    "github.com/oimyounis/go-sockets/client"
 )
 ```
 
