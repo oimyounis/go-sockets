@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"go-tcp/client"
+	"github.com/oimyounis/go-tcp/client"
 	"log"
 	"time"
 )
