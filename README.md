@@ -1,8 +1,11 @@
 # go-tcp
 go-tcp is an event-driven TCP sockets framework that allows you to create a server/client architecture with ease based on named events.
 
+## Project Status
+go-tcp is currently in an early development stage and is not ready for production use, yet.
+
 ## Installation
-### Go modules
+### Dependencies
 Execute the following command in your Terminal:
 ```bash
 go get -u github.com/google/uuid
@@ -43,7 +46,7 @@ srv.OnConnect(func(socket *server.Socket) {
     })
 })
 ```
-Here we setup an event handler that will fire when a client connects to us then we listen for the event ***ping*** and then we send back a ***pong*** event with the current time in seconds.
+Here we setup an event handler that will fire when a client connects to us then we listen for the ***ping*** event and then we send back a ***pong*** event with the current time in seconds.
 
 4. Start the server
 ```go
@@ -84,12 +87,16 @@ c.OnConnect(func(socket *client.Socket) {
     }()
 })
 ```
-Here we setup an event handler that will fire when the client connects to the server then we listen for the event ***pong*** then we start a goroutine that loops forever sending a ***ping*** event to the server every second.  
+Here we setup an event handler that will fire when the client connects to the server then we listen for the ***pong*** event then we start a goroutine that loops forever sending a ***ping*** event to the server every second.  
 
 **Important**: notice that we started the loop in a goroutine. That's because the OnConnect is a blocking call, so if you have blocking code that does not need to finish before the client starts listening on the connection you should call it inside a goroutine.
 
-4. Start the server
+4. Start the client
 ```go
 c.Listen()
 ```
 ***Start*** blocks the current thread listening for data.
+
+## Contribution
+All contributions are welcome.  
+You are very welcome to submit a new feature, fix a bug or an optimization to the code.  
