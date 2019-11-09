@@ -48,6 +48,12 @@ func (s *Socket) On(event string, callback MessageHandler) {
 	s.events[event] = callback
 }
 
+func (s *Socket) Off(event string) {
+	if _, ok := s.events[event]; ok {
+		delete(s.events, event)
+	}
+}
+
 func (s *Socket) socketReceiver() {
 	sockBuffer := bufio.NewReader(s.connection)
 	for {
@@ -74,6 +80,8 @@ func (s *Socket) socketReceiver() {
 						if strings.Contains(data, "\\"+DELIMITER) {
 							data = strings.ReplaceAll(data, "\\"+DELIMITER, DELIMITER)
 						}
+
+						data = strings.Trim(data, "\x00\x01")
 
 						go handler(data)
 					}

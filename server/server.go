@@ -86,6 +86,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 							data = strings.ReplaceAll(data, "\\"+DELIMITER, DELIMITER)
 						}
 
+						data = strings.Trim(data, "\x00\x01")
+
 						go handler(data)
 					}
 				} else {
@@ -111,6 +113,12 @@ func (s *Server) OnDisconnect(handler ConnectionHandler) {
 
 func (s *Socket) On(event string, callback MessageHandler) {
 	s.events[event] = callback
+}
+
+func (s *Socket) Off(event string) {
+	if _, ok := s.events[event]; ok {
+		delete(s.events, event)
+	}
 }
 
 func (s *Socket) EmitSync(event, data string) {
