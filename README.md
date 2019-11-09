@@ -109,6 +109,9 @@ c.Listen()
 ```
 ***Listen*** blocks the current thread listening for data.
 
+## License
+Released under the New BSD License.  
+
 ## Contribution
 All contributions are welcome.  
 You are very welcome to submit a new feature, fix a bug or an optimization to the code.  
