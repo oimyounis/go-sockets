@@ -18,7 +18,7 @@ go get -u github.com/oimyounis/go-sockets
 ```
 
 ## Hello World
-### Building the server
+### Building The Server
 
 **main.go**  
 1. Import go-sockets server  
@@ -60,7 +60,7 @@ srv.Start()
 ```
 ***Start*** blocks the current thread listening for connections.
 
-### Building the client
+### Building The Client
 
 **main.go**  
 1. Import go-sockets client  
@@ -115,3 +115,8 @@ Released under the New BSD License.
 ## Contribution
 All contributions are welcome.  
 You are very welcome to submit a new feature, fix a bug or an optimization to the code.  
+### To Contribute:
+1. Fork this repo.
+2. Create a new branch with a discriptive name (example: *feature/some-new-function* or *bugfix/fix-something-somewhere*).
+3. Commit and push your code to your new branch.
+4. Create a new Pull Request here.  
