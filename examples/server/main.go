@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/oimyounis/go-tcp/server"
 	"log"
 	"time"
+
+	"github.com/oimyounis/go-sockets/server"
 )
 
 func main() {

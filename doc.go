@@ -1,1 +1,1 @@
-package gotcp
+package gosockets
