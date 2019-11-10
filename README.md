@@ -88,7 +88,7 @@ c.OnConnect(func(socket *client.Socket) {
     log.Println("connected to server")
 
     socket.On("pong", func(data string) {
-        log.Printf("pong:%v", data)
+        log.Printf("pong:%v\n", data)
     })
 
     go func() {
@@ -110,7 +110,7 @@ c.Listen()
 ***Listen*** blocks the current thread listening for data.
 
 ## License
-Released under the New BSD License.  
+Licensed under the New BSD License.  
 
 ## Contribution
 All contributions are welcome.  
