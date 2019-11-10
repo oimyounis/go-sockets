@@ -24,6 +24,7 @@ type Socket struct {
 	Id         string
 	connection net.Conn
 	events     map[string]MessageHandler
+	server     *Server
 }
 
 type Server struct {
@@ -35,7 +36,7 @@ type Server struct {
 
 func (s *Server) addSocket(conn net.Conn) *Socket {
 	uid := uuid.New().String()
-	sock := &Socket{Id: uid, connection: conn, events: map[string]MessageHandler{}}
+	sock := &Socket{Id: uid, connection: conn, events: map[string]MessageHandler{}, server: s}
 	s.sockets[uid] = sock
 	return sock
 }
