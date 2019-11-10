@@ -112,11 +112,17 @@ func (s *Server) OnDisconnection(handler ConnectionHandler) {
 	s.disconnectEvent = handler
 }
 
+func (s *Server) EmitSync(event, data string) {
+	for _, socket := range s.sockets {
+		go socket.Emit(event, data)
+	}
+	time.Sleep(time.Millisecond * 2)
+}
+
 func (s *Server) Emit(event, data string) {
 	for _, socket := range s.sockets {
 		go socket.Emit(event, data)
 	}
-	time.Sleep(time.Millisecond * 5)
 }
 
 func (s *Socket) On(event string, callback MessageHandler) {
@@ -131,11 +137,21 @@ func (s *Socket) Off(event string) {
 
 func (s *Socket) EmitSync(event, data string) {
 	emit(s, event, data)
-	time.Sleep(time.Millisecond * 3)
+	time.Sleep(time.Millisecond * 2)
 }
 
 func (s *Socket) Emit(event, data string) {
 	go emit(s, event, data)
+}
+
+func (s *Socket) BroadcastSync(event, data string) {
+	for id, socket := range s.server.sockets {
+		if id == s.Id {
+			continue
+		}
+		go socket.Emit(event, data)
+	}
+	time.Sleep(time.Millisecond * 2)
 }
 
 func (s *Socket) Broadcast(event, data string) {
@@ -145,7 +161,6 @@ func (s *Socket) Broadcast(event, data string) {
 		}
 		go socket.Emit(event, data)
 	}
-	time.Sleep(time.Millisecond * 3)
 }
 
 func emit(socket *Socket, event, data string) {
