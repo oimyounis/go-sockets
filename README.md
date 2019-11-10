@@ -54,6 +54,8 @@ srv.OnConnect(func(socket *server.Socket) {
 ```
 Here we setup an event handler that will fire when a client connects to us then we listen for the ***ping*** event and then we send back a ***pong*** event with the current time in seconds.
 
+Important: the OnConnect event is a blocking call, so if you have blocking code that does not need to finish before the server starts processing the client's messages you should call it inside a goroutine.
+
 4. Start the server
 ```go
 srv.Start()
@@ -101,7 +103,7 @@ c.OnConnect(func(socket *client.Socket) {
 ```
 Here we setup an event handler that will fire when the client connects to the server then we listen for the ***pong*** event then we start a goroutine that loops forever sending a ***ping*** event to the server every second.  
 
-**Important**: notice that we started the loop in a goroutine. That's because the OnConnect is a blocking call, so if you have blocking code that does not need to finish before the client starts listening on the connection you should call it inside a goroutine.
+**Important**: notice that we started the loop in a goroutine. That's because the OnConnect event is a blocking call, so if you have blocking code that does not need to finish before the client starts listening on the connection you should call it inside a goroutine.
 
 4. Start the client
 ```go
