@@ -127,5 +127,10 @@ func New(address string) (*Socket, error) {
 		return nil, err
 	}
 
-	return &Socket{connection: conn, events: map[string]MessageHandler{}, connectEvent: func(socket *Socket) {}, disconnectEvent: func(socket *Socket) {}}, nil
+	return &Socket{
+		connection:      conn,
+		events:          map[string]MessageHandler{},
+		connectEvent:    func(socket *Socket) {},
+		disconnectEvent: func(socket *Socket) {},
+	}, nil
 }
