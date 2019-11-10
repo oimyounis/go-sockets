@@ -35,7 +35,7 @@ import (
 srv, err := server.New(":8000")
 
 if err != nil {
-    log.Fatalf("Failed to start server: %v", err)
+    log.Fatalf("Failed to start server: %v\n", err)
 }
 ```
 ***New*** takes a single argument, ***address*** that the server will listen on in the format *\<hostname_or_IP\>:\<port\>*. For example: *127.0.0.1:9000*.
@@ -77,7 +77,7 @@ import (
 c, err := client.New("localhost:8000")
 
 if err != nil {
-    log.Fatalf("Couldn't connect to server: %v", err)
+    log.Fatalf("Couldn't connect to server: %v\n", err)
 }
 ```
 Same as with the server, ***New*** takes a single argument, ***address*** that points to the server's address in the format *\<hostname_or_IP\>:\<port\>*. For example: *127.0.0.1:9000*.
