@@ -131,7 +131,7 @@ func (s *Socket) Off(event string) {
 
 func (s *Socket) EmitSync(event, data string) {
 	emit(s, event, data)
-	time.Sleep(time.Millisecond * 5)
+	time.Sleep(time.Millisecond * 3)
 }
 
 func (s *Socket) Emit(event, data string) {
