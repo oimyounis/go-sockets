@@ -172,5 +172,10 @@ func New(address string) (*Server, error) {
 		return nil, err
 	}
 
-	return &Server{listener: l, sockets: map[string]*Socket{}, connectEvent: func(socket *Socket) {}, disconnectEvent: func(socket *Socket) {}}, nil
+	return &Server{
+		listener:        l,
+		sockets:         map[string]*Socket{},
+		connectEvent:    func(socket *Socket) {},
+		disconnectEvent: func(socket *Socket) {},
+	}, nil
 }
