@@ -27,7 +27,7 @@ type Socket struct {
 
 func (s *Socket) EmitSync(event, data string) {
 	emit(s, event, data)
-	time.Sleep(time.Millisecond * 5)
+	time.Sleep(time.Millisecond * 2)
 }
 
 func (s *Socket) Emit(event, data string) {
