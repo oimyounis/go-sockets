@@ -23,6 +23,7 @@ type Socket struct {
 	events          map[string]MessageHandler
 	connectEvent    ConnectionHandler
 	disconnectEvent ConnectionHandler
+	connected       bool
 }
 
 func (s *Socket) EmitSync(event, data string) {
@@ -57,6 +58,10 @@ func (s *Socket) Off(event string) {
 func (s *Socket) socketReceiver() {
 	sockBuffer := bufio.NewReader(s.connection)
 	for {
+		if !s.connected {
+			break
+		}
+
 		recv, err := sockBuffer.ReadString('\x00')
 		if err != nil {
 			// log.Println(err)
@@ -64,6 +69,10 @@ func (s *Socket) socketReceiver() {
 		}
 
 		go func() {
+			if !s.connected {
+				return
+			}
+
 			message := strings.TrimSpace(recv)
 			if strings.Contains(message, DELIMITER) {
 				parts := delimiterRegex.FindAllStringSubmatch(message, 2)
@@ -103,6 +112,10 @@ func (s *Socket) OnDisconnect(handler ConnectionHandler) {
 	s.disconnectEvent = handler
 }
 
+func (s *Socket) Disconnect() {
+	s.connected = false
+}
+
 func emit(socket *Socket, event, data string) {
 	if strings.Contains(data, DELIMITER) {
 		data = strings.ReplaceAll(data, DELIMITER, "\\"+DELIMITER)
@@ -132,5 +145,6 @@ func New(address string) (*Socket, error) {
 		events:          map[string]MessageHandler{},
 		connectEvent:    func(socket *Socket) {},
 		disconnectEvent: func(socket *Socket) {},
+		connected:       true,
 	}, nil
 }

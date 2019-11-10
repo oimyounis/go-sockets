@@ -25,6 +25,7 @@ type Socket struct {
 	connection net.Conn
 	events     map[string]MessageHandler
 	server     *Server
+	connected  bool
 }
 
 type Server struct {
@@ -36,7 +37,7 @@ type Server struct {
 
 func (s *Server) addSocket(conn net.Conn) *Socket {
 	uid := uuid.New().String()
-	sock := &Socket{Id: uid, connection: conn, events: map[string]MessageHandler{}, server: s}
+	sock := &Socket{Id: uid, connection: conn, events: map[string]MessageHandler{}, server: s, connected: true}
 	s.sockets[uid] = sock
 	return sock
 }
@@ -63,6 +64,10 @@ func (s *Server) handleConnection(conn net.Conn) {
 	sockBuffer := bufio.NewReader(conn)
 
 	for {
+		if !socket.connected {
+			break
+		}
+
 		recv, err := sockBuffer.ReadString('\x00')
 		if err != nil {
 			// log.Printf("Socket %v disconnected\n", socket.uid)
@@ -70,6 +75,10 @@ func (s *Server) handleConnection(conn net.Conn) {
 		}
 
 		go func() {
+			if !socket.connected {
+				return
+			}
+
 			message := strings.TrimSpace(recv)
 			if strings.Contains(message, DELIMITER) {
 				parts := delimiterRegex.FindAllStringSubmatch(message, 2)
@@ -161,6 +170,10 @@ func (s *Socket) Broadcast(event, data string) {
 		}
 		go socket.Emit(event, data)
 	}
+}
+
+func (s *Socket) Disconnect() {
+	s.connected = false
 }
 
 func emit(socket *Socket, event, data string) {
