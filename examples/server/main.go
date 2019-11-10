@@ -15,7 +15,7 @@ func main() {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 
-	srv.OnConnect(func(socket *server.Socket) {
+	srv.OnConnection(func(socket *server.Socket) {
 		log.Printf("socket connected with id: %v\n", socket.Id)
 
 		socket.On("ping", func(data string) {
@@ -23,10 +23,13 @@ func main() {
 
 			socket.Emit("pong", fmt.Sprintf("%v", time.Now().Unix()))
 		})
+
+		socket.Broadcast("socket-joined", fmt.Sprintf("a socket joined with id: %v", socket.Id))
 	})
 
-	srv.OnDisconnect(func(socket *server.Socket) {
+	srv.OnDisconnection(func(socket *server.Socket) {
 		log.Printf("socket disconnected with id: %v\n", socket.Id)
+		socket.Broadcast("socket-left", fmt.Sprintf("a socket left with id: %v", socket.Id))
 	})
 
 	srv.Start()

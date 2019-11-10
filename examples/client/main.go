@@ -22,6 +22,14 @@ func main() {
 			log.Printf("pong:%v", data)
 		})
 
+		socket.On("socket-joined", func(data string) {
+			log.Printf("FROM SERVER: %v\n", data)
+		})
+
+		socket.On("socket-left", func(data string) {
+			log.Printf("FROM SERVER: %v\n", data)
+		})
+
 		go func() {
 			for {
 				socket.EmitSync("ping", fmt.Sprintf("%v", time.Now().Unix()))
