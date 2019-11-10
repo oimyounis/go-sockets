@@ -112,6 +112,13 @@ func (s *Server) OnDisconnection(handler ConnectionHandler) {
 	s.disconnectEvent = handler
 }
 
+func (s *Server) Emit(event, data string) {
+	for _, socket := range s.sockets {
+		go socket.Emit(event, data)
+	}
+	time.Sleep(time.Millisecond * 5)
+}
+
 func (s *Socket) On(event string, callback MessageHandler) {
 	s.events[event] = callback
 }
