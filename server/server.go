@@ -138,6 +138,16 @@ func (s *Socket) Emit(event, data string) {
 	go emit(s, event, data)
 }
 
+func (s *Socket) Broadcast(event, data string) {
+	for id, socket := range s.server.sockets {
+		if id == s.Id {
+			continue
+		}
+		go socket.Emit(event, data)
+	}
+	time.Sleep(time.Millisecond * 3)
+}
+
 func emit(socket *Socket, event, data string) {
 	if strings.Contains(data, DELIMITER) {
 		data = strings.ReplaceAll(data, DELIMITER, "\\"+DELIMITER)
