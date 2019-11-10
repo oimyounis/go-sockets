@@ -104,11 +104,11 @@ func (s *Server) handleConnection(conn net.Conn) {
 	s.disconnectEvent(socket)
 }
 
-func (s *Server) OnConnect(handler ConnectionHandler) {
+func (s *Server) OnConnection(handler ConnectionHandler) {
 	s.connectEvent = handler
 }
 
-func (s *Server) OnDisconnect(handler ConnectionHandler) {
+func (s *Server) OnDisconnection(handler ConnectionHandler) {
 	s.disconnectEvent = handler
 }
 
