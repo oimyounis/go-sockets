@@ -57,8 +57,10 @@ func (s *Server) removeSocket(socket *Socket) {
 		delete(s.sockets, socket.Id)
 	}
 }
+
+func (s *Server) Listen() {
 	defer s.listener.Close()
-	log.Println("Server started and listening for connections")
+	log.Println("Server listening on " + s.listener.Addr().String())
 
 	for {
 		conn, err := s.listener.Accept()
