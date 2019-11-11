@@ -178,6 +178,10 @@ func (s *Socket) Broadcast(event, data string) {
 	}
 }
 
+func (s *Socket) Connected() bool {
+	return s.connected
+}
+
 func (s *Socket) Disconnect() {
 	s.connected = false
 }
