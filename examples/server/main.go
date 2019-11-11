@@ -32,5 +32,5 @@ func main() {
 		socket.Broadcast("socket-left", fmt.Sprintf("a socket left with id: %v", socket.Id))
 	})
 
-	srv.Start()
+	srv.Listen()
 }
