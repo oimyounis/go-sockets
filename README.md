@@ -42,7 +42,7 @@ if err != nil {
 
 3. Set the OnConnect event handler
 ```go
-srv.OnConnect(func(socket *server.Socket) {
+srv.OnConnection(func(socket *server.Socket) {
     log.Printf("socket connected with id: %v\n", socket.Id)
 
     socket.On("ping", func(data string) {
@@ -58,9 +58,9 @@ Here we setup an event handler that will fire when a client connects to us then 
 
 4. Start the server
 ```go
-srv.Start()
+srv.Listen()
 ```
-***Start*** blocks the current thread listening for connections.
+***Listen*** blocks the current thread listening for connections.
 
 ### Building The Client
 
