@@ -21,16 +21,16 @@ const (
 	FRAME_TYPE_HEARTBEAT_ACK FrameType = 92
 )
 
-
 type ConnectionHandler func(socket *Socket)
 type MessageHandler func(data string)
 
 type Socket struct {
-	Id         string
-	connection net.Conn
-	events     map[string]MessageHandler
-	server     *Server
-	connected  bool
+	Id               string
+	connection       net.Conn
+	events           map[string]MessageHandler
+	server           *Server
+	connected        bool
+	lastHeartbeatAck int64
 }
 
 type Server struct {
@@ -148,10 +148,32 @@ func (s *Socket) Send(event string, data []byte) {
 	send(s, event, data, FRAME_TYPE_MESSAGE)
 }
 
+func (s *Socket) startHeartbeat() {
+	time.Sleep(time.Second * 5)
+	for {
+		if !s.connected {
+			break
+		}
+
+		log.Println("sending heartbeat")
+		raw(s, []byte{}, FRAME_TYPE_HEARTBEAT)
+		time.Sleep(time.Second * 5)
+		if !s.connected {
+			break
+		}
+		log.Println("heartbeat wakeup", s.lastHeartbeatAck == 0, time.Now().Unix()-s.lastHeartbeatAck > 5)
+		if s.lastHeartbeatAck == 0 || time.Now().Unix()-s.lastHeartbeatAck > 5 {
+			s.connected = false
+			break
+		}
+	}
+}
+
 func (s *Server) handleConnection(conn net.Conn) {
 	// log.Printf("Accepted connection from %v\n", conn.RemoteAddr().String())
 	socket := s.addSocket(conn)
 	s.connectEvent(socket)
+	go socket.startHeartbeat()
 	socket.listen()
 }
 
