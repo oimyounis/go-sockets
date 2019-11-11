@@ -29,6 +29,7 @@ type Socket struct {
 }
 
 type Server struct {
+	address         string
 	listener        net.Listener
 	sockets         map[string]*Socket
 	connectEvent    ConnectionHandler
@@ -201,6 +202,7 @@ func New(address string) (*Server, error) {
 	}
 
 	return &Server{
+		address:         address,
 		listener:        l,
 		sockets:         map[string]*Socket{},
 		connectEvent:    func(socket *Socket) {},
