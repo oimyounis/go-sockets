@@ -43,7 +43,12 @@ func (s *Server) addSocket(conn net.Conn) *Socket {
 	return sock
 }
 
-func (s *Server) Start() {
+func (s *Server) removeSocket(socket *Socket) {
+	if _, ok := s.sockets[socket.Id]; ok {
+		socket.connected = false
+		delete(s.sockets, socket.Id)
+	}
+}
 	defer s.listener.Close()
 	log.Println("Server started and listening for connections")
 
