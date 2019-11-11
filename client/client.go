@@ -2,18 +2,23 @@ package client
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
-	"log"
 	"net"
-	"regexp"
 	"strings"
 	"time"
 )
 
-const DELIMITER = "§"
-const DELIMITER_LENGTH = len(DELIMITER)
+type FrameType byte
 
-var delimiterRegex *regexp.Regexp = regexp.MustCompile(`(.*[^\\])§((.*\n?.*)*)`)
+const (
+	DELIMITER                      = "§"
+	DELIMITER_LENGTH               = len(DELIMITER)
+	FRAME_TYPE_MESSAGE   FrameType = 1
+	FRAME_TYPE_HEARTBEAT FrameType = 2
+)
+
+// var delimiterRegex *regexp.Regexp = regexp.MustCompile(`(.*[^\\])§((.*\n?.*)*)`)
 
 type ConnectionHandler func(socket *Socket)
 type MessageHandler func(data string)
@@ -62,43 +67,82 @@ func (s *Socket) socketReceiver() {
 			break
 		}
 
-		recv, err := sockBuffer.ReadString('\x00')
+		recv, err := sockBuffer.ReadBytes(10)
 		if err != nil {
 			// log.Println(err)
 			break
 		}
 
-		go func() {
+		go func(frame []byte) {
 			if !s.connected {
 				return
 			}
+			frameLen := len(frame)
 
-			message := strings.TrimSpace(recv)
-			if strings.Contains(message, DELIMITER) {
-				parts := delimiterRegex.FindAllStringSubmatch(message, 2)
-				if len(parts) == 1 && len(parts[0]) >= 3 {
-					event := parts[0][1]
+			if frameLen > 0 {
+				if frame[0] == byte(FRAME_TYPE_MESSAGE) {
+					if frameLen > 2 {
+						eventLen := binary.BigEndian.Uint16(frame[1:3])
+						eventName := strings.Trim(string(frame[3:3+eventLen]), "\x00")
+						if frameLen > 3+int(eventLen) {
+							data := frame[3+eventLen : frameLen-1]
+							dataLen := len(data)
 
-					if strings.Contains(event, "\\"+DELIMITER) {
-						event = strings.ReplaceAll(event, "\\"+DELIMITER, DELIMITER)
-					}
+							filtered := make([]byte, 0, dataLen)
+							convert := false
+							for i := 0; i < dataLen; i++ {
+								if data[i] == 92 && i != dataLen-1 && data[i+1] == 0 {
+									convert = true
+									continue
+								}
+								if !convert {
+									filtered = append(filtered, data[i])
+								} else {
+									filtered = append(filtered, 10)
+									convert = false
+								}
+							}
 
-					if handler, ok := s.events[event]; ok {
-						data := parts[0][2]
-
-						if strings.Contains(data, "\\"+DELIMITER) {
-							data = strings.ReplaceAll(data, "\\"+DELIMITER, DELIMITER)
+							if handler, ok := s.events[eventName]; ok {
+								go handler(string(filtered))
+							}
 						}
-
-						data = strings.Trim(data, "\x00\x01")
-
-						go handler(data)
 					}
-				} else {
-					log.Printf("Received a malformed message: %v\n", message)
 				}
 			}
-		}()
+		}(recv)
+
+		// go func() {
+		// 	if !s.connected {
+		// 		return
+		// 	}
+
+		// 	message := strings.TrimSpace(recv)
+		// 	if strings.Contains(message, DELIMITER) {
+		// 		parts := delimiterRegex.FindAllStringSubmatch(message, 2)
+		// 		if len(parts) == 1 && len(parts[0]) >= 3 {
+		// 			event := parts[0][1]
+
+		// 			if strings.Contains(event, "\\"+DELIMITER) {
+		// 				event = strings.ReplaceAll(event, "\\"+DELIMITER, DELIMITER)
+		// 			}
+
+		// 			if handler, ok := s.events[event]; ok {
+		// 				data := parts[0][2]
+
+		// 				if strings.Contains(data, "\\"+DELIMITER) {
+		// 					data = strings.ReplaceAll(data, "\\"+DELIMITER, DELIMITER)
+		// 				}
+
+		// 				data = strings.Trim(data, "\x00\x01")
+
+		// 				go handler(data)
+		// 			}
+		// 		} else {
+		// 			log.Printf("Received a malformed message: %v\n", message)
+		// 		}
+		// 	}
+		// }()
 	}
 	s.connection.Close()
 	s.disconnectEvent(s)
