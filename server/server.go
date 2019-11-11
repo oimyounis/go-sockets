@@ -90,6 +90,10 @@ func (s *Server) Emit(event, data string) {
 	}
 }
 
+func (s *Server) Connection() net.Listener {
+	return s.listener
+}
+
 func (s *Socket) On(event string, callback MessageHandler) {
 	s.events[event] = callback
 }
@@ -130,6 +134,10 @@ func (s *Socket) Broadcast(event, data string) {
 
 func (s *Socket) Connected() bool {
 	return s.connected
+}
+
+func (s *Socket) Connection() net.Conn {
+	return s.connection
 }
 
 func (s *Socket) Disconnect() {
