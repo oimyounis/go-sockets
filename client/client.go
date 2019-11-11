@@ -157,6 +157,10 @@ func (s *Socket) OnDisconnect(handler ConnectionHandler) {
 	s.disconnectEvent = handler
 }
 
+func (s *Socket) Connected() bool {
+	return s.connected
+}
+
 func (s *Socket) Disconnect() {
 	s.connected = false
 }
