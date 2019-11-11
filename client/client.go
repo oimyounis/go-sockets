@@ -47,6 +47,7 @@ func (s *Socket) Start() {
 
 func (s *Socket) Listen() {
 	s.connectEvent(s)
+	go s.startHeartbeat()
 	s.socketReceiver()
 }
 
@@ -63,6 +64,28 @@ func (s *Socket) Off(event string) {
 func (s *Socket) Connection() net.Conn {
 	return s.connection
 }
+
+func (s *Socket) startHeartbeat() {
+	time.Sleep(time.Second * 5)
+	for {
+		if !s.connected {
+			break
+		}
+
+		log.Println("sending heartbeat")
+		raw(s, []byte{}, FRAME_TYPE_HEARTBEAT)
+		time.Sleep(time.Second * 5)
+		if !s.connected {
+			break
+		}
+		log.Println("heartbeat wakeup", s.lastHeartbeatAck == 0, time.Now().Unix()-s.lastHeartbeatAck > 5)
+		if s.lastHeartbeatAck == 0 || time.Now().Unix()-s.lastHeartbeatAck > 5 {
+			s.connected = false
+			break
+		}
+	}
+}
+
 func (s *Socket) socketReceiver() {
 	sockBuffer := bufio.NewReader(s.connection)
 	for {
@@ -75,6 +98,8 @@ func (s *Socket) socketReceiver() {
 			// log.Println(err)
 			break
 		}
+
+		log.Printf("in < %v", recv)
 
 		go func(frame []byte) {
 			if !s.connected {
