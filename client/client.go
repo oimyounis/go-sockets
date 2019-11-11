@@ -60,6 +60,9 @@ func (s *Socket) Off(event string) {
 	}
 }
 
+func (s *Socket) Connection() net.Conn {
+	return s.connection
+}
 func (s *Socket) socketReceiver() {
 	sockBuffer := bufio.NewReader(s.connection)
 	for {
