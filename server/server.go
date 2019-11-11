@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"regexp"
 	"strings"
 	"time"
 
@@ -17,13 +16,11 @@ import (
 type FrameType byte
 
 const (
-	DELIMITER                      = "§"
-	DELIMITER_LENGTH               = len(DELIMITER)
-	FRAME_TYPE_MESSAGE   FrameType = 1
-	FRAME_TYPE_HEARTBEAT FrameType = 2
+	FRAME_TYPE_MESSAGE       FrameType = 90
+	FRAME_TYPE_HEARTBEAT     FrameType = 91
+	FRAME_TYPE_HEARTBEAT_ACK FrameType = 92
 )
 
-var delimiterRegex *regexp.Regexp = regexp.MustCompile(`(.*[^\\])§((.*\n?.*)*)`)
 
 type ConnectionHandler func(socket *Socket)
 type MessageHandler func(data string)
@@ -158,52 +155,64 @@ func (s *Socket) listen() {
 			break
 		}
 
-		recv, err := sockBuffer.ReadString('\x00')
+		recv, err := sockBuffer.ReadBytes(10)
 		if err != nil {
-			// log.Printf("Socket %v disconnected\n", socket.uid)
+			// log.Println(err)
 			break
 		}
 
-		go func() {
-			message := strings.TrimSpace(recv)
-			if strings.Contains(message, DELIMITER) {
-				parts := delimiterRegex.FindAllStringSubmatch(message, 2)
-				if len(parts) == 1 && len(parts[0]) >= 3 {
-					event := parts[0][1]
+		go func(frame []byte) {
+			if !s.connected {
+				return
+			}
+			frameLen := len(frame)
 
-					if strings.Contains(event, "\\"+DELIMITER) {
-						event = strings.ReplaceAll(event, "\\"+DELIMITER, DELIMITER)
-					}
+			if frameLen > 0 {
+				switch frame[0] {
+				case byte(FRAME_TYPE_MESSAGE):
+					if frameLen > 2 {
+						eventLen := binary.BigEndian.Uint16(frame[1:3])
+						eventName := strings.Trim(string(frame[3:3+eventLen]), "\x00")
+						if frameLen > 3+int(eventLen) {
+							data := frame[3+eventLen : frameLen-1]
+							dataLen := len(data)
 
-					if handler, ok := s.events[event]; ok {
-						data := parts[0][2]
+							filtered := make([]byte, 0, dataLen)
+							convert := false
+							for i := 0; i < dataLen; i++ {
+								if data[i] == 92 && i != dataLen-1 && data[i+1] == 0 {
+									convert = true
+									continue
+								}
+								if !convert {
+									filtered = append(filtered, data[i])
+								} else {
+									filtered = append(filtered, 10)
+									convert = false
+								}
+							}
 
-						if strings.Contains(data, "\\"+DELIMITER) {
-							data = strings.ReplaceAll(data, "\\"+DELIMITER, DELIMITER)
+							if handler, ok := s.events[eventName]; ok {
+								go handler(string(filtered))
+							}
 						}
-
-						data = strings.Trim(data, "\x00\x01")
-
-						if !s.connected {
-							return
-						}
-
-						go handler(data)
 					}
-				} else {
-					log.Printf("Received a malformed message: %v\n", message)
+				case byte(FRAME_TYPE_HEARTBEAT):
+					raw(s, []byte{}, FRAME_TYPE_HEARTBEAT_ACK)
+				case byte(FRAME_TYPE_HEARTBEAT_ACK):
+					s.lastHeartbeatAck = time.Now().Unix()
 				}
 			}
-		}()
+		}(recv)
 	}
 	s.connection.Close()
 	s.server.removeSocket(s)
 	s.server.disconnectEvent(s)
 }
 
-func buildFrameHeader(event string, frameType FrameType) ([]byte, error) {
-	if len(event) > 1<<16-1 {
-		return nil, fmt.Errorf("Event Name length exceeds the maximum of %v bytes\n", 1<<16-1)
+func buildMessageFrameHeader(event string, frameType FrameType) ([]byte, error) {
+	if len(event) > 1<<16-2 {
+		return nil, fmt.Errorf("Event Name length exceeds the maximum of %v bytes\n", 1<<16-2)
 	}
 
 	frameBuff := []byte{}
@@ -230,8 +239,8 @@ func buildFrameHeader(event string, frameType FrameType) ([]byte, error) {
 	return frameBuff, nil
 }
 
-func buildFrame(event string, data []byte, frameType FrameType) ([]byte, error) {
-	frame, err := buildFrameHeader(event, frameType)
+func buildMessageFrame(event string, data []byte, frameType FrameType) ([]byte, error) {
+	frame, err := buildMessageFrameHeader(event, frameType)
 	if err != nil {
 		return nil, err
 	}
@@ -242,12 +251,33 @@ func buildFrame(event string, data []byte, frameType FrameType) ([]byte, error) 
 	return frame, nil
 }
 
+func buildFrame(data []byte, frameType FrameType) ([]byte, error) {
+	frame := []byte{}
+	frame = append(frame, byte(frameType))
+
+	frame = append(frame, (bytes.ReplaceAll(data, []byte{10}, []byte{92, 0}))...)
+	frame = append(frame, 10)
+
+	return frame, nil
+}
+
 func send(socket *Socket, event string, data []byte, frameType FrameType) {
-	frame, err := buildFrame(event, data, frameType)
+	frame, err := buildMessageFrame(event, data, frameType)
 	if err != nil {
 		return
 	}
-	// log.Printf("out > %v\n", frame)
+	log.Printf("out > %v\n", frame)
+	if _, err = socket.connection.Write(frame); err != nil {
+		return
+	}
+}
+
+func raw(socket *Socket, data []byte, frameType FrameType) {
+	frame, err := buildFrame(data, frameType)
+	if err != nil {
+		return
+	}
+	log.Printf("out > %v\n", frame)
 	if _, err = socket.connection.Write(frame); err != nil {
 		return
 	}
@@ -255,21 +285,6 @@ func send(socket *Socket, event string, data []byte, frameType FrameType) {
 
 func emit(socket *Socket, event, data string) {
 	send(socket, event, []byte(data), FRAME_TYPE_MESSAGE)
-	// if strings.Contains(data, DELIMITER) {
-	// 	data = strings.ReplaceAll(data, DELIMITER, "\\"+DELIMITER)
-	// }
-	// if strings.ContainsRune(data, '\x00') {
-	// 	data = strings.ReplaceAll(data, "\x00", "\x01")
-	// }
-	// if strings.Contains(event, DELIMITER) {
-	// 	event = strings.ReplaceAll(event, DELIMITER, "\\"+DELIMITER)
-	// }
-	// if strings.ContainsRune(event, '\x00') {
-	// 	event = strings.ReplaceAll(event, "\x00", "\x01")
-	// }
-	// packet := []byte(fmt.Sprintf("%v%v%v", event, DELIMITER, data))
-	// packet = append(packet, '\x00')
-	// socket.connection.Write(packet)
 }
 
 func New(address string) (*Server, error) {
