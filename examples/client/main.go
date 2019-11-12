@@ -1,9 +1,7 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"time"
 
 	"go-sockets/client"
 )
@@ -18,12 +16,19 @@ func main() {
 	socket.On("connection", func(_ string) {
 		log.Println("connected to server")
 
-		go func() {
-			for {
-				socket.EmitSync("ping", fmt.Sprintf("%v", time.Now().Unix()))
-				time.Sleep(time.Second)
-			}
-		}()
+		// go func() {
+		// 	for {
+		size := 2048
+		buff := make([]byte, size)
+		for i := 0; i < size; i++ {
+			buff[i] = byte(i)
+		}
+
+		socket.EmitSync("test", string(buff))
+		// socket.EmitSync("test", string([]byte{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}))
+		// 	time.Sleep(time.Second)
+		// }
+		// }()
 	})
 
 	socket.On("pong", func(data string) {

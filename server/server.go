@@ -199,7 +199,7 @@ func (s *Socket) listen() {
 			break
 		}
 
-		log.Printf("in > %v", recv)
+		log.Printf("in [%v] > %v", len(recv), "recv")
 
 		go func(frame []byte) {
 			if !s.connected {

@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
+	"math"
 	"net"
 	"strings"
 	"time"
@@ -14,9 +15,16 @@ import (
 type FrameType byte
 
 const (
+	BATCH_SIZE               int       = 1024
 	FRAME_TYPE_MESSAGE       FrameType = 90
 	FRAME_TYPE_HEARTBEAT     FrameType = 91
 	FRAME_TYPE_HEARTBEAT_ACK FrameType = 92
+)
+
+var (
+	TERMINAL_SEQ     []byte = []byte{96, 96, 0, 96, 96}
+	TERMINAL_SEQ_LEN int    = len(TERMINAL_SEQ)
+	FILL_POINT       int    = BATCH_SIZE - len(TERMINAL_SEQ)
 )
 
 type ConnectionHandler func(socket *Socket)
@@ -32,7 +40,6 @@ type Socket struct {
 
 func (s *Socket) EmitSync(event, data string) {
 	emit(s, event, data)
-	time.Sleep(time.Millisecond * 2)
 }
 
 func (s *Socket) Emit(event, data string) {
@@ -205,10 +212,55 @@ func buildMessageFrame(event string, data []byte, frameType FrameType) ([]byte, 
 		return nil, err
 	}
 
-	frame = append(frame, (bytes.ReplaceAll(data, []byte{10}, []byte{92, 92, 0}))...)
-	frame = append(frame, 10)
-
 	return frame, nil
+}
+
+func send(socket *Socket, event string, data []byte, frameType FrameType) {
+	if !socket.connected {
+		return
+	}
+	frame, err := buildMessageFrame(event, data, frameType)
+	if err != nil {
+		return
+	}
+
+	data = append(data, TERMINAL_SEQ...)
+
+	batchCount := int(math.Ceil(float64(len(data)) / float64(BATCH_SIZE)))
+	batches := make([][BATCH_SIZE]byte, batchCount)
+
+	log.Println("batch count", batchCount)
+
+	for b := 0; b < batchCount; b++ {
+		start := b * BATCH_SIZE
+
+		log.Println("start", start)
+		end := 0
+		rem := (BATCH_SIZE + start - len(data))
+		log.Println("rem", rem)
+
+		if rem < 0 {
+			end = BATCH_SIZE
+		} else {
+			end = BATCH_SIZE - rem
+		}
+		log.Println("end", end)
+
+		src := data[start : start+end]
+		buffered := len(src)
+		copy(batches[b][:], src)
+
+		log.Printf("idx:%v, len:%v, buffered:%v  %v\n", b, len(batches[b]), buffered, batches[b])
+	}
+	return
+
+	// frame = append(frame, (bytes.ReplaceAll(data, []byte{10}, []byte{92, 92, 0}))...)
+	// frame = append(frame, 10)
+
+	// log.Printf("out < %v\n", frame)
+	if _, err = socket.connection.Write(frame); err != nil {
+		return
+	}
 }
 
 func buildFrame(data []byte, frameType FrameType) ([]byte, error) {
@@ -221,20 +273,6 @@ func buildFrame(data []byte, frameType FrameType) ([]byte, error) {
 	return frame, nil
 }
 
-func send(socket *Socket, event string, data []byte, frameType FrameType) {
-	if !socket.connected {
-		return
-	}
-	frame, err := buildMessageFrame(event, data, frameType)
-	if err != nil {
-		return
-	}
-	log.Printf("out < %v\n", frame)
-	if _, err = socket.connection.Write(frame); err != nil {
-		return
-	}
-}
-
 func raw(socket *Socket, data []byte, frameType FrameType) {
 	if !socket.connected {
 		return
@@ -243,7 +281,7 @@ func raw(socket *Socket, data []byte, frameType FrameType) {
 	if err != nil {
 		return
 	}
-	log.Printf("out < %v\n", frame)
+	// log.Printf("out < %v\n", frame)
 	if _, err = socket.connection.Write(frame); err != nil {
 		return
 	}
