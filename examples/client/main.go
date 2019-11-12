@@ -9,26 +9,14 @@ import (
 )
 
 func main() {
-	c, err := client.New("localhost:9090")
+	socket, err := client.New("localhost:9090")
 
 	if err != nil {
 		log.Fatalf("Couldn't connect to server: %v", err)
 	}
 
-	c.OnConnect(func(socket *client.Socket) {
+	socket.On("connection", func(_ string) {
 		log.Println("connected to server")
-
-		socket.On("pong", func(data string) {
-			log.Printf("pong:%v", data)
-		})
-
-		socket.On("socket-joined", func(data string) {
-			log.Printf("FROM SERVER: %v\n", data)
-		})
-
-		socket.On("socket-left", func(data string) {
-			log.Printf("FROM SERVER: %v\n", data)
-		})
 
 		go func() {
 			for {
@@ -38,9 +26,21 @@ func main() {
 		}()
 	})
 
-	c.OnDisconnect(func(socket *client.Socket) {
+	socket.On("pong", func(data string) {
+		log.Printf("pong:%v", data)
+	})
+
+	socket.On("socket-joined", func(data string) {
+		log.Printf("FROM SERVER: %v\n", data)
+	})
+
+	socket.On("socket-left", func(data string) {
+		log.Printf("FROM SERVER: %v\n", data)
+	})
+
+	socket.On("disconnection", func(_ string) {
 		log.Println("disconnected from server")
 	})
 
-	c.Listen()
+	socket.Listen()
 }
