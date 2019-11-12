@@ -42,13 +42,13 @@ func (s *Socket) Emit(event, data string) {
 
 func (s *Socket) Start() {
 	s.connectEvent(s)
-	go s.socketReceiver()
+	go s.listen()
 }
 
 func (s *Socket) Listen() {
 	s.connectEvent(s)
 	go s.startHeartbeat()
-	s.socketReceiver()
+	s.listen()
 }
 
 func (s *Socket) On(event string, callback MessageHandler) {
@@ -88,7 +88,7 @@ func (s *Socket) startHeartbeat() {
 	}
 }
 
-func (s *Socket) socketReceiver() {
+func (s *Socket) listen() {
 	sockBuffer := bufio.NewReader(s.connection)
 	for {
 		if !s.connected {
