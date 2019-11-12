@@ -73,13 +73,15 @@ func (s *Socket) startHeartbeat() {
 		}
 
 		log.Println("sending heartbeat")
+		start := time.Now().UnixNano() / 1000000
 		raw(s, []byte{}, FRAME_TYPE_HEARTBEAT)
 		time.Sleep(time.Second * 5)
 		if !s.connected {
 			break
 		}
-		log.Println("heartbeat wakeup", s.lastHeartbeatAck == 0, time.Now().Unix()-s.lastHeartbeatAck > 5)
-		if s.lastHeartbeatAck == 0 || time.Now().Unix()-s.lastHeartbeatAck > 5 {
+		log.Println("heartbeat wakeup", s.lastHeartbeatAck == 0, s.lastHeartbeatAck-start)
+		if s.lastHeartbeatAck == 0 || s.lastHeartbeatAck-start > 5000 {
+			log.Println("disconnecting from server")
 			s.connected = false
 			break
 		}
@@ -99,7 +101,7 @@ func (s *Socket) socketReceiver() {
 			break
 		}
 
-		log.Printf("in < %v", recv)
+		log.Printf("in > %v", recv)
 
 		go func(frame []byte) {
 			if !s.connected {
@@ -140,7 +142,7 @@ func (s *Socket) socketReceiver() {
 				case byte(FRAME_TYPE_HEARTBEAT):
 					raw(s, []byte{}, FRAME_TYPE_HEARTBEAT_ACK)
 				case byte(FRAME_TYPE_HEARTBEAT_ACK):
-					s.lastHeartbeatAck = time.Now().Unix()
+					s.lastHeartbeatAck = time.Now().UnixNano() / 1000000
 				}
 			}
 		}(recv)
@@ -221,22 +223,28 @@ func buildFrame(data []byte, frameType FrameType) ([]byte, error) {
 }
 
 func send(socket *Socket, event string, data []byte, frameType FrameType) {
+	if !socket.connected {
+		return
+	}
 	frame, err := buildMessageFrame(event, data, frameType)
 	if err != nil {
 		return
 	}
-	log.Printf("out > %v\n", frame)
+	log.Printf("out < %v\n", frame)
 	if _, err = socket.connection.Write(frame); err != nil {
 		return
 	}
 }
 
 func raw(socket *Socket, data []byte, frameType FrameType) {
+	if !socket.connected {
+		return
+	}
 	frame, err := buildFrame(data, frameType)
 	if err != nil {
 		return
 	}
-	log.Printf("out > %v\n", frame)
+	log.Printf("out < %v\n", frame)
 	if _, err = socket.connection.Write(frame); err != nil {
 		return
 	}
