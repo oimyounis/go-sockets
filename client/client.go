@@ -23,10 +23,9 @@ type ConnectionHandler func(socket *Socket)
 type MessageHandler func(data string)
 
 type Socket struct {
+	Id               string
 	connection       net.Conn
 	events           map[string]MessageHandler
-	connectEvent     ConnectionHandler
-	disconnectEvent  ConnectionHandler
 	connected        bool
 	lastHeartbeatAck int64
 }
@@ -41,12 +40,12 @@ func (s *Socket) Emit(event, data string) {
 }
 
 func (s *Socket) Start() {
-	s.connectEvent(s)
+	s.envokeEvent("connection", "")
 	go s.listen()
 }
 
 func (s *Socket) Listen() {
-	s.connectEvent(s)
+	s.envokeEvent("connection", "")
 	go s.startHeartbeat()
 	s.listen()
 }
@@ -63,6 +62,12 @@ func (s *Socket) Off(event string) {
 
 func (s *Socket) Connection() net.Conn {
 	return s.connection
+}
+
+func (s *Socket) envokeEvent(name, data string) {
+	if handler, ok := s.events[name]; ok {
+		handler(data)
+	}
 }
 
 func (s *Socket) startHeartbeat() {
@@ -134,9 +139,7 @@ func (s *Socket) listen() {
 								}
 							}
 
-							if handler, ok := s.events[eventName]; ok {
-								go handler(string(filtered))
-							}
+							go s.envokeEvent(eventName, string(filtered))
 						}
 					}
 				case byte(FRAME_TYPE_HEARTBEAT):
@@ -148,15 +151,7 @@ func (s *Socket) listen() {
 		}(recv)
 	}
 	s.connection.Close()
-	s.disconnectEvent(s)
-}
-
-func (s *Socket) OnConnect(handler ConnectionHandler) {
-	s.connectEvent = handler
-}
-
-func (s *Socket) OnDisconnect(handler ConnectionHandler) {
-	s.disconnectEvent = handler
+	s.envokeEvent("disconnection", "")
 }
 
 func (s *Socket) Connected() bool {
@@ -261,10 +256,8 @@ func New(address string) (*Socket, error) {
 	}
 
 	return &Socket{
-		connection:      conn,
-		events:          map[string]MessageHandler{},
-		connectEvent:    func(socket *Socket) {},
-		disconnectEvent: func(socket *Socket) {},
-		connected:       true,
+		connection: conn,
+		events:     map[string]MessageHandler{},
+		connected:  true,
 	}, nil
 }
