@@ -1,13 +1,13 @@
 package server
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/binary"
 	"fmt"
 	"log"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +16,7 @@ import (
 type FrameType byte
 
 const (
+	FRAME_SIZE               int       = 1024
 	FRAME_TYPE_MESSAGE       FrameType = 90
 	FRAME_TYPE_HEARTBEAT     FrameType = 91
 	FRAME_TYPE_HEARTBEAT_ACK FrameType = 92
@@ -181,25 +182,30 @@ func (s *Server) handleConnection(conn net.Conn) {
 	// log.Printf("Accepted connection from %v\n", conn.RemoteAddr().String())
 	socket := s.addSocket(conn)
 	s.connectEvent(socket)
-	go socket.startHeartbeat()
+	// go socket.startHeartbeat()
 	socket.listen()
 }
 
 func (s *Socket) listen() {
-	sockBuffer := bufio.NewReader(s.connection)
+	// sockBuffer := bufio.NewReader(s.connection)
+
+	batches := make(map[uint32][]byte)
+
+	var mutex sync.Mutex
 
 	for {
 		if !s.connected {
 			break
 		}
 
-		recv, err := sockBuffer.ReadBytes(10)
+		buff := make([]byte, FRAME_SIZE)
+		_, err := s.connection.Read(buff)
 		if err != nil {
 			// log.Println(err)
 			break
 		}
 
-		log.Printf("in [%v] > %v", len(recv), "recv")
+		// log.Printf("in [%v] > %v", n, frame)
 
 		go func(frame []byte) {
 			if !s.connected {
@@ -210,33 +216,28 @@ func (s *Socket) listen() {
 			if frameLen > 0 {
 				switch frame[0] {
 				case byte(FRAME_TYPE_MESSAGE):
-					if frameLen > 2 {
-						eventLen := binary.BigEndian.Uint16(frame[1:3])
-						eventName := strings.Trim(string(frame[3:3+eventLen]), "\x00")
-						if frameLen > 3+int(eventLen) {
-							data := frame[3+eventLen : frameLen-1]
-							dataLen := len(data)
+					if frameLen > 13 {
+						batchId := binary.BigEndian.Uint32(frame[1:5])
+						// log.Println("batchId", batchId)
 
-							filtered := make([]byte, 0, dataLen)
-							skip := 0
-							for i := 0; i < dataLen; i++ {
-								if skip > 1 {
-									skip--
-									continue
-								}
-								if data[i] == 92 && i != dataLen-2 && data[i+1] == 92 && data[i+2] == 0 {
-									skip = 2
-									continue
-								}
-								if skip == 1 {
-									filtered = append(filtered, 10)
-									skip--
-								} else {
-									filtered = append(filtered, data[i])
-								}
-							}
+						isLast := frame[5:6][0] == 1
+						// log.Println("isLast", isLast)
 
-							go s.envokeEvent(eventName, string(filtered))
+						eventLen := binary.BigEndian.Uint16(frame[6:8])
+						eventEnd := 8 + eventLen
+						eventName := string(frame[8:eventEnd])
+						// log.Println("eventLen", eventLen, "eventName", eventName)
+
+						dataLen := binary.BigEndian.Uint16(frame[eventEnd : eventEnd+2])
+
+						data := frame[eventEnd+2 : eventEnd+2+dataLen]
+
+						mutex.Lock()
+						batches[batchId] = append(batches[batchId], data...)
+						mutex.Unlock()
+
+						if isLast {
+							go s.envokeEvent(eventName, string(batches[batchId]))
 						}
 					}
 				case byte(FRAME_TYPE_HEARTBEAT):
@@ -245,7 +246,7 @@ func (s *Socket) listen() {
 					s.lastHeartbeatAck = time.Now().UnixNano() / 1000000
 				}
 			}
-		}(recv)
+		}(buff)
 	}
 	s.connection.Close()
 	s.server.removeSocket(s)

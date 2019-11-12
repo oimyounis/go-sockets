@@ -3,12 +3,12 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"go-sockets/server"
 )
 
 func main() {
-	log.Println([]byte{1, 2, 3, 4, 5}[:len([]byte{1, 2, 3, 4, 5})])
 	srv, err := server.New(":9090")
 
 	if err != nil {
@@ -17,6 +17,13 @@ func main() {
 
 	srv.OnConnection(func(socket *server.Socket) {
 		log.Printf("socket connected with id: %v\n", socket.Id)
+
+		socket.On("test", func(data string) {
+			log.Println("test", len(data), "z=", strings.Count(data, "z"))
+		})
+		socket.On("test2", func(data string) {
+			log.Println("test2", len(data), "z=", strings.Count(data, "z"))
+		})
 
 		// socket.On("ping", func(data string) {
 		// 	log.Println("message received on event: ping: " + data)

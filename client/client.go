@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"math/rand"
 	"net"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -16,16 +18,17 @@ type FrameType byte
 
 const (
 	BATCH_SIZE               int       = 1024
+	HEADER_SIZE              int       = 14
 	FRAME_TYPE_MESSAGE       FrameType = 90
 	FRAME_TYPE_HEARTBEAT     FrameType = 91
 	FRAME_TYPE_HEARTBEAT_ACK FrameType = 92
 )
 
-var (
-	TERMINAL_SEQ     []byte = []byte{96, 96, 0, 96, 96}
-	TERMINAL_SEQ_LEN int    = len(TERMINAL_SEQ)
-	FILL_POINT       int    = BATCH_SIZE - len(TERMINAL_SEQ)
-)
+// var (
+// 	TERMINAL_SEQ     []byte = []byte{96, 96, 0, 96, 96}
+// 	TERMINAL_SEQ_LEN int    = len(TERMINAL_SEQ)
+// 	FILL_POINT       int    = BATCH_SIZE - len(TERMINAL_SEQ)
+// )
 
 type ConnectionHandler func(socket *Socket)
 type MessageHandler func(data string)
@@ -38,12 +41,12 @@ type Socket struct {
 	lastHeartbeatAck int64
 }
 
-func (s *Socket) EmitSync(event, data string) {
-	emit(s, event, data)
+func (s *Socket) SendSync(event, data string) {
+	send(s, event, data)
 }
 
-func (s *Socket) Emit(event, data string) {
-	go emit(s, event, data)
+func (s *Socket) Send(event, data string) {
+	go send(s, event, data)
 }
 
 func (s *Socket) Start() {
@@ -53,7 +56,7 @@ func (s *Socket) Start() {
 
 func (s *Socket) Listen() {
 	s.envokeEvent("connection", "")
-	go s.startHeartbeat()
+	// go s.startHeartbeat()
 	s.listen()
 }
 
@@ -173,8 +176,8 @@ func (s *Socket) Disconnect() {
 	s.connected = false
 }
 
-func (s *Socket) Send(event string, data []byte) {
-	send(s, event, data, FRAME_TYPE_MESSAGE)
+func (s *Socket) Emit(event string, data []byte) {
+	emit(s, event, data)
 }
 
 func buildMessageFrameHeader(event string, frameType FrameType) ([]byte, error) {
@@ -215,52 +218,99 @@ func buildMessageFrame(event string, data []byte, frameType FrameType) ([]byte, 
 	return frame, nil
 }
 
-func send(socket *Socket, event string, data []byte, frameType FrameType) {
+var mu sync.Mutex
+
+func randomBytes(size int) (buff []byte) {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	mu.Lock()
+	defer mu.Unlock()
+	for i := 0; i < size; i++ {
+		buff = append(buff, byte(r.Intn(255)))
+	}
+	return
+}
+
+func pad(buff []byte, size int) []byte {
+	return append(buff, make([]byte, size-len(buff))...)
+}
+
+func emit(socket *Socket, event string, data []byte) {
 	if !socket.connected {
 		return
 	}
-	frame, err := buildMessageFrame(event, data, frameType)
-	if err != nil {
+	// frame, err := buildMessageFrame(event, data, frameType)
+	// if err != nil {
+	// 	return
+	// }
+
+	if len(event) > 1<<16-2 {
 		return
+		// return nil, fmt.Errorf("Event Name length exceeds the maximum of %v bytes\n", 1<<16-2)
 	}
 
-	data = append(data, TERMINAL_SEQ...)
+	dataLen := float64(len(data))
+	srcLenBuff := make([]byte, 2)
+	eventLenBuff := make([]byte, 2)
+	eventBytes := []byte(event)
+	eventLen := len(eventBytes)
+	binary.BigEndian.PutUint16(eventLenBuff, uint16(eventLen))
 
-	batchCount := int(math.Ceil(float64(len(data)) / float64(BATCH_SIZE)))
-	batches := make([][BATCH_SIZE]byte, batchCount)
+	batchId := randomBytes(4)
 
-	log.Println("batch count", batchCount)
+	headerBuff := []byte{}
+	headerBuff = append(headerBuff, byte(FRAME_TYPE_MESSAGE))
+	headerBuff = append(headerBuff, batchId...)
+	headerBuff = append(headerBuff, 0)
 
-	for b := 0; b < batchCount; b++ {
-		start := b * BATCH_SIZE
+	headerBuff = append(headerBuff, eventLenBuff...)
+	headerBuff = append(headerBuff, eventBytes...)
+	headerBuff = append(headerBuff, 0, 0)
 
-		log.Println("start", start)
-		end := 0
-		rem := (BATCH_SIZE + start - len(data))
-		log.Println("rem", rem)
+	headerBuffLen := len(headerBuff)
 
-		if rem < 0 {
-			end = BATCH_SIZE
-		} else {
-			end = BATCH_SIZE - rem
-		}
-		log.Println("end", end)
+	batchCount := math.Ceil(dataLen / float64(BATCH_SIZE))
+
+	allDataLen := float64(headerBuffLen)*batchCount + dataLen
+	batchCount = math.Ceil(float64(allDataLen) / float64(BATCH_SIZE))
+
+	realBatchSize := float64(BATCH_SIZE - headerBuffLen)
+
+	lastEl := batchCount - 1
+
+	count := 0
+
+	now := time.Now()
+	for b := 0.0; b < batchCount; b++ {
+		frameBuff := []byte{}
+		frameBuff = append(frameBuff, headerBuff...)
+
+		start := int(b * realBatchSize)
+		end := int(math.Min(dataLen-float64(start), realBatchSize))
 
 		src := data[start : start+end]
-		buffered := len(src)
-		copy(batches[b][:], src)
+		binary.BigEndian.PutUint16(srcLenBuff, uint16(len(src)))
 
-		log.Printf("idx:%v, len:%v, buffered:%v  %v\n", b, len(batches[b]), buffered, batches[b])
+		frameBuff[8+eventLen] = srcLenBuff[0]
+		frameBuff[9+eventLen] = srcLenBuff[1]
+
+		frameBuff = append(frameBuff, src...)
+
+		if b == lastEl {
+			frameBuff[5] = 1
+			frameBuff = pad(frameBuff, BATCH_SIZE)
+		} else {
+			frameBuff[5] = 0
+		}
+
+		count += len(src)
+
+		if _, err := socket.connection.Write(frameBuff); err != nil {
+			return
+		}
 	}
-	return
-
-	// frame = append(frame, (bytes.ReplaceAll(data, []byte{10}, []byte{92, 92, 0}))...)
-	// frame = append(frame, 10)
+	log.Println(time.Since(now), event, count)
 
 	// log.Printf("out < %v\n", frame)
-	if _, err = socket.connection.Write(frame); err != nil {
-		return
-	}
 }
 
 func buildFrame(data []byte, frameType FrameType) ([]byte, error) {
@@ -281,14 +331,14 @@ func raw(socket *Socket, data []byte, frameType FrameType) {
 	if err != nil {
 		return
 	}
-	// log.Printf("out < %v\n", frame)
+	log.Printf("out < %v\n", frame)
 	if _, err = socket.connection.Write(frame); err != nil {
 		return
 	}
 }
 
-func emit(socket *Socket, event, data string) {
-	send(socket, event, []byte(data), FRAME_TYPE_MESSAGE)
+func send(socket *Socket, event, data string) {
+	emit(socket, event, []byte(data))
 }
 
 func New(address string) (*Socket, error) {

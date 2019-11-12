@@ -18,13 +18,15 @@ func main() {
 
 		// go func() {
 		// 	for {
-		size := 2048
+		size := 15555555
 		buff := make([]byte, size)
 		for i := 0; i < size; i++ {
 			buff[i] = byte(i)
 		}
 
-		socket.EmitSync("test", string(buff))
+		socket.Emit("test", buff)
+
+		// socket.Send("test2", string(bytes.Repeat([]byte{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'}, 445123)))
 		// socket.EmitSync("test", string([]byte{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}))
 		// 	time.Sleep(time.Second)
 		// }
