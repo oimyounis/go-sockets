@@ -218,17 +218,21 @@ func (s *Socket) listen() {
 							dataLen := len(data)
 
 							filtered := make([]byte, 0, dataLen)
-							convert := false
+							skip := 0
 							for i := 0; i < dataLen; i++ {
-								if data[i] == 92 && i != dataLen-1 && data[i+1] == 0 {
-									convert = true
+								if skip > 1 {
+									skip--
 									continue
 								}
-								if !convert {
-									filtered = append(filtered, data[i])
-								} else {
+								if data[i] == 92 && i != dataLen-2 && data[i+1] == 92 && data[i+2] == 0 {
+									skip = 2
+									continue
+								}
+								if skip == 1 {
 									filtered = append(filtered, 10)
-									convert = false
+									skip--
+								} else {
+									filtered = append(filtered, data[i])
 								}
 							}
 
@@ -283,7 +287,7 @@ func buildMessageFrame(event string, data []byte, frameType FrameType) ([]byte, 
 		return nil, err
 	}
 
-	frame = append(frame, (bytes.ReplaceAll(data, []byte{10}, []byte{92, 0}))...)
+	frame = append(frame, (bytes.ReplaceAll(data, []byte{10}, []byte{92, 92, 0}))...)
 	frame = append(frame, 10)
 
 	return frame, nil
@@ -293,7 +297,7 @@ func buildFrame(data []byte, frameType FrameType) ([]byte, error) {
 	frame := []byte{}
 	frame = append(frame, byte(frameType))
 
-	frame = append(frame, (bytes.ReplaceAll(data, []byte{10}, []byte{92, 0}))...)
+	frame = append(frame, (bytes.ReplaceAll(data, []byte{10}, []byte{92, 92, 0}))...)
 	frame = append(frame, 10)
 
 	return frame, nil
