@@ -148,6 +148,12 @@ func (s *Socket) Send(event string, data []byte) {
 	send(s, event, data, FRAME_TYPE_MESSAGE)
 }
 
+func (s *Socket) envokeEvent(name, data string) {
+	if handler, ok := s.events[name]; ok {
+		handler(data)
+	}
+}
+
 func (s *Socket) startHeartbeat() {
 	time.Sleep(time.Second * 5)
 	for {
@@ -226,9 +232,7 @@ func (s *Socket) listen() {
 								}
 							}
 
-							if handler, ok := s.events[eventName]; ok {
-								go handler(string(filtered))
-							}
+							go s.envokeEvent(eventName, string(filtered))
 						}
 					}
 				case byte(FRAME_TYPE_HEARTBEAT):
