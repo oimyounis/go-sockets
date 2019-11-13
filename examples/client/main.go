@@ -1,10 +1,33 @@
 package main
 
 import (
+	"bytes"
 	"log"
+	"strconv"
 
 	"go-sockets/client"
 )
+
+func mbToInt(size string) int {
+	num := size[:len(size)-1]
+	conv, _ := strconv.Atoi(num)
+	switch string(size[len(size)-1]) {
+	case "b":
+		return conv
+	case "k":
+		return conv * 1024
+	case "m":
+		return conv * 1024 * 1024
+	case "g":
+		return conv * 1024 * 1024 * 1024
+	}
+
+	return 0
+}
+
+func mbSlice(size string) []byte {
+	return bytes.Repeat([]byte{1}, mbToInt(size))
+}
 
 func main() {
 	socket, err := client.New("localhost:9090")
@@ -18,19 +41,23 @@ func main() {
 
 		// go func() {
 		// 	for {
-		size := 15555555
-		buff := make([]byte, size)
-		for i := 0; i < size; i++ {
-			buff[i] = byte(i)
-		}
-
-		socket.Emit("test", buff)
+		// time.Sleep(time.Second)
+		// 		time.Sleep(time.Millisecond * 5)
+		// 	}
+		// }()
 
 		// socket.Send("test2", string(bytes.Repeat([]byte{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'}, 445123)))
 		// socket.EmitSync("test", string([]byte{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}))
 		// 	time.Sleep(time.Second)
 		// }
 		// }()
+	})
+
+	socket.On("testee", func(data string) {
+		// log.Println("testee", len(data))
+	})
+	socket.On("testee2", func(data string) {
+		// log.Println("testee2", len(data))
 	})
 
 	socket.On("pong", func(data string) {
