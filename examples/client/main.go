@@ -4,22 +4,23 @@ import (
 	"bytes"
 	"log"
 	"strconv"
+	"time"
 
 	"go-sockets/client"
 )
 
 func mbToInt(size string) int {
 	num := size[:len(size)-1]
-	conv, _ := strconv.Atoi(num)
+	conv, _ := strconv.ParseFloat(num, 64)
 	switch string(size[len(size)-1]) {
 	case "b":
-		return conv
+		return int(conv)
 	case "k":
-		return conv * 1024
+		return int(conv * 1024)
 	case "m":
-		return conv * 1024 * 1024
+		return int(conv * 1024 * 1024)
 	case "g":
-		return conv * 1024 * 1024 * 1024
+		return int(conv * 1024 * 1024 * 1024)
 	}
 
 	return 0
@@ -36,15 +37,23 @@ func main() {
 		log.Fatalf("Couldn't connect to server: %v", err)
 	}
 
+	go func() {
+		for {
+			time.Sleep(time.Second * 10)
+			log.Println("total sent bytes:", socket.TotalSentBytes)
+		}
+	}()
+
 	socket.On("connection", func(_ string) {
 		log.Println("connected to server")
 
-		// go func() {
-		// 	for {
-		// time.Sleep(time.Second)
-		// 		time.Sleep(time.Millisecond * 5)
-		// 	}
-		// }()
+		go func() {
+			for {
+				socket.Emit("test", bytes.Repeat([]byte{1}, 1234567))
+				socket.Emit("test2", bytes.Repeat([]byte{1}, 1234))
+				time.Sleep(time.Millisecond * 500)
+			}
+		}()
 
 		// socket.Send("test2", string(bytes.Repeat([]byte{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'}, 445123)))
 		// socket.EmitSync("test", string([]byte{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}))
@@ -73,7 +82,7 @@ func main() {
 	})
 
 	socket.On("disconnection", func(_ string) {
-		log.Println("disconnected from server")
+		log.Println("disconnection: disconnected from server")
 	})
 
 	socket.Listen()

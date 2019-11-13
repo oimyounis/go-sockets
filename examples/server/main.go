@@ -2,9 +2,9 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"log"
 	"strconv"
+	"time"
 
 	"go-sockets/server"
 )
@@ -37,6 +37,13 @@ func main() {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 
+	go func() {
+		for {
+			time.Sleep(time.Second * 10)
+			log.Println("total sent bytes:", srv.TotalSentBytes)
+		}
+	}()
+
 	srv.OnConnection(func(socket *server.Socket) {
 		log.Printf("socket connected with id: %v\n", socket.Id)
 
@@ -47,6 +54,13 @@ func main() {
 			// time.Sleep(time.Millisecond * 2)
 			// }
 		}()
+
+		socket.On("test", func(data string) {
+			log.Println("test:", len(data))
+		})
+		socket.On("test2", func(data string) {
+			log.Println("test2:", len(data))
+		})
 
 		// socket.On("ping", func(data string) {
 		// 	log.Println("message received on event: ping: " + data)
@@ -59,7 +73,7 @@ func main() {
 
 	srv.OnDisconnection(func(socket *server.Socket) {
 		log.Printf("socket disconnected with id: %v\n", socket.Id)
-		socket.Broadcast("socket-left", fmt.Sprintf("a socket left with id: %v", socket.Id))
+		// socket.Broadcast("socket-left", fmt.Sprintf("a socket left with id: %v", socket.Id))
 	})
 
 	srv.Listen()
