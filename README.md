@@ -48,7 +48,7 @@ srv.OnConnection(func(socket *server.Socket) {
     socket.On("ping", func(data string) {
         log.Println("message received on event: ping: " + data)
 
-        socket.Emit("pong", fmt.Sprintf("%v", time.Now().Unix()))
+        socket.Send("pong", fmt.Sprintf("%v", time.Now().Unix()))
     })
 })
 ```
@@ -76,7 +76,7 @@ import (
 
 2. Initialize a new client instance
 ```go
-c, err := client.New("localhost:8000")
+socket, err := client.New("localhost:8000")
 
 if err != nil {
     log.Fatalf("Couldn't connect to server: %v\n", err)
@@ -84,30 +84,30 @@ if err != nil {
 ```
 Same as with the server, ***New*** takes a single argument, ***address*** that points to the server's address in the format *\<hostname_or_IP\>:\<port\>*. For example: *127.0.0.1:9000*.
 
-3. Set the OnConnect event handler
+3. Set event handlers
 ```go
-c.OnConnect(func(socket *client.Socket) {
+socket.On("connection", func(data string) {
     log.Println("connected to server")
-
-    socket.On("pong", func(data string) {
-        log.Printf("pong:%v\n", data)
-    })
 
     go func() {
         for {
-            socket.Emit("ping", fmt.Sprintf("%v", time.Now().Unix()))
+            socket.Send("ping", fmt.Sprintf("%v", time.Now().Unix()))
             time.Sleep(time.Second)
         }
     }()
 })
-```
-Here we setup an event handler that will fire when the client connects to the server then we listen for the ***pong*** event then we start a goroutine that loops forever sending a ***ping*** event to the server every second.  
 
-**Important**: notice that we started the loop in a goroutine. That's because the OnConnect event is a blocking call, so if you have blocking code that does not need to finish before the client starts listening on the connection you should call it inside a goroutine.
+socket.On("pong", func(data string) {
+    log.Printf("pong:%v\n", data)
+})
+```
+Here we setup an event handler that will fire when the client connects to the server and start a goroutine that loops forever sending a ***ping*** event to the server every second then we setup a listener for the ***pong*** event.  
+
+**Important**: notice that we started the loop in a goroutine. That's because the **connection** event is a blocking call, so if you have blocking code that does not need to finish before the client starts listening on the connection you should call it inside a goroutine.
 
 4. Start the client
 ```go
-c.Listen()
+socket.Listen()
 ```
 ***Listen*** blocks the current thread listening for data.
 
