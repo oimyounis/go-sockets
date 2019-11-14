@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"log"
 	"strconv"
-	"time"
 
 	"go-sockets/client"
 )
@@ -37,29 +36,36 @@ func main() {
 		log.Fatalf("Couldn't connect to server: %v", err)
 	}
 
-	go func() {
-		for {
-			time.Sleep(time.Second * 10)
-			log.Println("total sent bytes:", socket.TotalSentBytes)
-		}
-	}()
+	// go func() {
+	// 	for {
+	// 		time.Sleep(time.Second * 10)
+	// 		log.Println("total sent bytes:", socket.TotalSentBytes)
+	// 	}
+	// }()
 
 	socket.On("connection", func(_ string) {
 		log.Println("connected to server")
-
-		go func() {
-			for {
-				socket.Emit("test111", bytes.Repeat([]byte{2}, 123456))
-				socket.Emit("test2", bytes.Repeat([]byte{2}, 1234))
-				time.Sleep(time.Millisecond * 100)
-			}
-		}()
 
 		// socket.Send("test2", string(bytes.Repeat([]byte{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'}, 445123)))
 		// socket.EmitSync("test", string([]byte{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}))
 		// 	time.Sleep(time.Second)
 		// }
 		// }()
+	})
+
+	socket.On("test11", func(data string) {
+		c := bytes.Count([]byte(data), []byte{2})
+		if c != mbToInt("3m") {
+			log.Fatalln("test11 len mismatch", c)
+		}
+		log.Println("test11:", c)
+	})
+	socket.On("test2", func(data string) {
+		c := bytes.Count([]byte(data), []byte{3})
+		if c != mbToInt("2m") {
+			log.Fatalln("test2 len mismatch", c)
+		}
+		log.Println("test2:", c)
 	})
 
 	socket.On("testee", func(data string) {
