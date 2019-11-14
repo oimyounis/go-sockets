@@ -49,9 +49,9 @@ func main() {
 
 		go func() {
 			for {
-				socket.Emit("test", bytes.Repeat([]byte{1}, 1234567))
-				socket.Emit("test2", bytes.Repeat([]byte{1}, 1234))
-				time.Sleep(time.Millisecond * 500)
+				socket.Emit("test111", bytes.Repeat([]byte{2}, 123456))
+				socket.Emit("test2", bytes.Repeat([]byte{2}, 1234))
+				time.Sleep(time.Millisecond * 100)
 			}
 		}()
 

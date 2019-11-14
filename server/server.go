@@ -167,7 +167,7 @@ func (s *Socket) envokeEvent(name, data string) {
 }
 
 func (s *Socket) startHeartbeat() {
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 2)
 	for {
 		if !s.connected {
 			break
@@ -214,62 +214,54 @@ func (s *Socket) listen() {
 			break
 		}
 
-		// log.Printf("in [%v] > %v", n, frame[:10])
+		log.Printf("in [%v] > %v", n, frame[:30])
+		if frame[0] == 2 || n != FRAME_SIZE && n > 5 {
+			log.Fatalln("frame[0] == 2", n, frame)
+		}
 
 		// go func(frame []byte) {
 		if !s.connected {
 			return
 		}
-		frameLen := len(frame)
+
+		frameType := frame[0]
 
 		if n == FRAME_SIZE {
-			switch frame[0] {
+			switch frameType {
 			case byte(FRAME_TYPE_MESSAGE):
-				if frameLen > 13 {
-					batchId := binary.BigEndian.Uint32(frame[1:5])
-
-					isLast := frame[5:6][0] == 1
-					// log.Println("isLast", isLast)
-
-					eventLen := binary.BigEndian.Uint16(frame[6:8])
-					eventEnd := 8 + eventLen
-					if frameLen < int(eventEnd) {
-						log.Println("frame", n, frame)
-						log.Println("eventEnd", eventEnd)
-						log.Println("frame[8]", frame[8])
-						continue
-					}
-
-					eventName := string(frame[8:eventEnd])
-					// log.Println("eventLen", eventLen, "eventName", eventName)
-
-					dataLen := binary.BigEndian.Uint16(frame[eventEnd : eventEnd+2])
-
-					data := frame[eventEnd+2 : eventEnd+2+dataLen]
-
-					batchQueue[batchId] = append(batchQueue[batchId], data...)
-
-					if isLast {
-						go s.envokeEvent(eventName, string(batchQueue[batchId]))
-						delete(batchQueue, batchId)
-					}
-				}
+				processMessageFrame(s, frame, batchQueue)
 			case byte(FRAME_TYPE_HEARTBEAT):
 				raw(s, []byte{}, FRAME_TYPE_HEARTBEAT_ACK)
 			case byte(FRAME_TYPE_HEARTBEAT_ACK):
 				s.lastHeartbeatAck = time.Now().UnixNano() / 1000000
 			}
 		} else if n >= RAW_HEADER_SIZE {
-			processedBytes := 0
-			for processedBytes != n {
-				frameType := frame[processedBytes : processedBytes+1][0]
-				dataLen := int(binary.BigEndian.Uint32(frame[processedBytes+1 : processedBytes+RAW_HEADER_SIZE]))
-				data := []byte{}
-				if dataLen > 0 {
-					data = frame[processedBytes+RAW_HEADER_SIZE : processedBytes+RAW_HEADER_SIZE+dataLen]
+			switch frameType {
+			case byte(FRAME_TYPE_MESSAGE):
+				processMessageFrame(s, frame, batchQueue)
+			default:
+				processedBytes := 0
+				// log.Println("n", n)
+				for processedBytes != n {
+					// frameType := frame[processedBytes : processedBytes+1][0]
+					// dataLen := 0
+
+					// log.Println("3 frameType", n, frameType, "---", processedBytes)
+					// log.Println("4 frame", n, frame)
+
+					// dataLen = int(binary.BigEndian.Uint32(frame[processedBytes+1 : processedBytes+RAW_HEADER_SIZE]))
+
+					// data := []byte{}
+					// if dataLen > 0 {
+					// 	log.Println("3 frameType", n, frameType, "---", processedBytes)
+					// 	log.Println("4 frame", n, frame)
+					// 	data = frame[processedBytes+RAW_HEADER_SIZE : processedBytes+RAW_HEADER_SIZE+dataLen]
+					// }
+					processedBytes += processRawFrame(s, frame, processedBytes, n)
+
+					// processedBytes += dataLen + RAW_HEADER_SIZE
 				}
-				processRawFrame(s, frameType, data)
-				processedBytes += dataLen + RAW_HEADER_SIZE
+
 			}
 		}
 		// }(buff)
@@ -277,13 +269,65 @@ func (s *Socket) listen() {
 	s.disconnect()
 }
 
-func processRawFrame(s *Socket, frameType byte, data []byte) {
+func processMessageFrame(s *Socket, frame []byte, batchQueue map[uint32][]byte) {
+	frameLen := len(frame)
+	if frameLen > 13 {
+		// log.Println("1 frameType", n, frameType)
+
+		batchId := binary.BigEndian.Uint32(frame[1:5])
+
+		isLast := frame[5:6][0] == 1
+		// log.Println("isLast", isLast)
+
+		eventLen := binary.BigEndian.Uint16(frame[6:8])
+		eventEnd := int(8 + eventLen)
+		if frameLen < eventEnd {
+			log.Println("err frame", frame)
+			log.Println("err eventEnd", eventEnd)
+			log.Println("err frame[8]", frame[8])
+			return
+		}
+
+		eventName := string(frame[8:eventEnd])
+		// log.Println("eventLen", eventLen, "eventName", eventName)
+
+		dataLen := int(binary.BigEndian.Uint16(frame[eventEnd : eventEnd+2]))
+
+		// log.Println("2 dataLen", dataLen)
+
+		data := frame[eventEnd+2 : eventEnd+2+dataLen]
+
+		batchQueue[batchId] = append(batchQueue[batchId], data...)
+
+		if isLast {
+			go s.envokeEvent(eventName, string(batchQueue[batchId]))
+			delete(batchQueue, batchId)
+		}
+
+	}
+}
+
+func processRawFrame(s *Socket, frame []byte, processedBytes int, read int) int {
+	dataLen := 0
+	// log.Println("frame", processedBytes, len(frame), frame)
+	frameType := frame[processedBytes : processedBytes+1][0]
 	switch frameType {
 	case byte(FRAME_TYPE_HEARTBEAT):
+		// data := []byte{}
+		dataLen = int(binary.BigEndian.Uint32(frame[processedBytes+1 : processedBytes+RAW_HEADER_SIZE]))
+		// if dataLen > 0 {
+		// log.Println("3 frameType", n, frameType, "---", processedBytes)
+		// log.Println("4 frame", n, frame)
+		// data = frame[processedBytes+RAW_HEADER_SIZE : processedBytes+RAW_HEADER_SIZE+dataLen]
+		// }
 		raw(s, []byte{}, FRAME_TYPE_HEARTBEAT_ACK)
 	case byte(FRAME_TYPE_HEARTBEAT_ACK):
+		dataLen = int(binary.BigEndian.Uint32(frame[processedBytes+1 : processedBytes+RAW_HEADER_SIZE]))
 		s.lastHeartbeatAck = time.Now().UnixNano() / 1000000
+	default:
+		return read
 	}
+	return dataLen + RAW_HEADER_SIZE
 }
 
 func buildMessageFrameHeader(event string, frameType FrameType) ([]byte, error) {

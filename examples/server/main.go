@@ -40,7 +40,7 @@ func main() {
 	go func() {
 		for {
 			time.Sleep(time.Second * 10)
-			log.Println("total sent bytes:", srv.TotalSentBytes)
+			// log.Println("total sent bytes:", srv.TotalSentBytes)
 		}
 	}()
 
@@ -55,10 +55,16 @@ func main() {
 			// }
 		}()
 
-		socket.On("test", func(data string) {
-			log.Println("test:", len(data))
+		socket.On("test111", func(data string) {
+			if len(data) != 123456 {
+				log.Fatalln("test111 len(data) != 123456", len(data))
+			}
+			log.Println("test111:", len(data))
 		})
 		socket.On("test2", func(data string) {
+			if len(data) != 1234 {
+				log.Fatalln("test2 len(data) != 1234", len(data))
+			}
 			log.Println("test2:", len(data))
 		})
 

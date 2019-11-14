@@ -43,7 +43,7 @@ type Socket struct {
 	connected        bool
 	lastHeartbeatAck int64
 	TotalSentBytes   uint64
-	// mutex            sync.Mutex
+	mutex            sync.Mutex
 }
 
 func (s *Socket) Start() {
@@ -88,7 +88,7 @@ func (s *Socket) envokeEvent(name, data string) {
 }
 
 func (s *Socket) startHeartbeat() {
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 2)
 	for {
 		if !s.connected {
 			break
@@ -294,7 +294,6 @@ func emit(socket *Socket, event string, data []byte) {
 	}
 
 	dataLen := len(data)
-	srcLenBuff := make([]byte, 2)
 	eventLenBuff := make([]byte, 2)
 	eventBytes := []byte(event)
 	eventLen := len(eventBytes)
@@ -326,6 +325,8 @@ func emit(socket *Socket, event string, data []byte) {
 	// now := time.Now()
 
 	for b := 0; b < batchCount; b++ {
+		srcLenBuff := make([]byte, 2)
+
 		frameBuff = append(frameBuff, headerBuff...)
 
 		start := b * realBatchSize
@@ -353,13 +354,18 @@ func emit(socket *Socket, event string, data []byte) {
 
 	frameBuff = pad(frameBuff, batchCount*FRAME_SIZE)
 
-	// socket.mutex.Lock()
+	log.Println(len(frameBuff), len(frameBuff)%FRAME_SIZE)
+	if len(frameBuff)%FRAME_SIZE != 0 || frameBuff[0] == 2 {
+		log.Fatalln(len(frameBuff), event, frameBuff)
+	}
+
+	socket.mutex.Lock()
 	socket.TotalSentBytes += uint64(len(frameBuff))
 	if _, err := socket.connection.Write(frameBuff); err != nil {
-		// socket.mutex.Unlock()
+		socket.mutex.Unlock()
 		return
 	}
-	// socket.mutex.Unlock()
+	socket.mutex.Unlock()
 
 	// log.Println(time.Since(now), event, len(frameBuff))
 
@@ -375,7 +381,7 @@ func buildFrame(data []byte, frameType FrameType) ([]byte, error) {
 
 	frame = append(frame, dataLenBuff...)
 	frame = append(frame, data...)
-	// frame = pad(frame, FRAME_SIZE)
+	frame = pad(frame, FRAME_SIZE)
 
 	return frame, nil
 }
@@ -391,9 +397,13 @@ func raw(socket *Socket, data []byte, frameType FrameType) {
 	// log.Printf("out < %v\n", frameType)
 	socket.TotalSentBytes += uint64(len(frame))
 	time.Sleep(time.Microsecond * 500)
+
+	socket.mutex.Lock()
 	if _, err = socket.connection.Write(frame); err != nil {
+		socket.mutex.Unlock()
 		return
 	}
+	socket.mutex.Unlock()
 }
 
 func send(socket *Socket, event, data string) {
