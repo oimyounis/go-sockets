@@ -23,7 +23,7 @@ const (
 )
 
 const (
-	HEARTBEAT_INTERVAL = 10
+	HEARTBEAT_INTERVAL = 5
 )
 
 type ConnectionHandler func(socket *Socket)
@@ -60,8 +60,14 @@ func (s *Server) removeSocket(socket *Socket) {
 	}
 }
 
-func (s *Server) Listen() {
-	defer s.listener.Close()
+func (s *Server) Listen() error {
+	l, err := net.Listen("tcp", s.address)
+	if err != nil {
+		return err
+	}
+	defer l.Close()
+
+	s.listener = l
 	log.Println("Server listening on " + s.listener.Addr().String())
 
 	for {
@@ -72,6 +78,7 @@ func (s *Server) Listen() {
 			go s.handleConnection(conn)
 		}
 	}
+	return nil
 }
 
 func (s *Server) OnConnection(handler ConnectionHandler) {
@@ -315,17 +322,12 @@ func send(socket *Socket, event, data string) {
 	emit(socket, event, []byte(data))
 }
 
-func New(address string) (*Server, error) {
-	l, err := net.Listen("tcp", address)
-	if err != nil {
-		return nil, err
-	}
-
+func New(address string) *Server {
 	return &Server{
 		address:         address,
-		listener:        l,
+		listener:        nil,
 		sockets:         map[string]*Socket{},
 		connectEvent:    func(socket *Socket) {},
 		disconnectEvent: func(socket *Socket) {},
-	}, nil
+	}
 }
