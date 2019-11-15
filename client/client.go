@@ -21,7 +21,7 @@ const (
 )
 
 const (
-	HEARTBEAT_INTERVAL = 10
+	HEARTBEAT_INTERVAL = 5
 )
 
 type ConnectionHandler func(socket *Socket)
@@ -29,21 +29,32 @@ type MessageHandler func(data string)
 
 type Socket struct {
 	Id               string
+	address          string
 	connection       net.Conn
 	events           map[string]MessageHandler
 	connected        bool
 	lastHeartbeatAck int64
 }
 
-func (s *Socket) Start() {
+func (s *Socket) Start() error {
+	err := s.connect()
+	if err != nil {
+		return err
+	}
 	s.envokeEvent("connection", "")
 	go s.listen()
+	return nil
 }
 
-func (s *Socket) Listen() {
+func (s *Socket) Listen() error {
+	err := s.connect()
+	if err != nil {
+		return err
+	}
 	s.envokeEvent("connection", "")
 	go s.startHeartbeat()
 	s.listen()
+	return nil
 }
 
 func (s *Socket) On(event string, callback MessageHandler) {
@@ -58,6 +69,15 @@ func (s *Socket) Off(event string) {
 
 func (s *Socket) Connection() net.Conn {
 	return s.connection
+}
+
+func (s *Socket) connect() error {
+	conn, err := net.Dial("tcp", s.address)
+	if err != nil {
+		return err
+	}
+	s.connection = conn
+	return nil
 }
 
 func (s *Socket) disconnect() {
@@ -248,15 +268,11 @@ func send(socket *Socket, event, data string) {
 	emit(socket, event, []byte(data))
 }
 
-func New(address string) (*Socket, error) {
-	conn, err := net.Dial("tcp", address)
-	if err != nil {
-		return nil, err
-	}
-
+func New(address string) *Socket {
 	return &Socket{
-		connection: conn,
+		address:    address,
+		connection: nil,
 		events:     map[string]MessageHandler{},
 		connected:  true,
-	}, nil
+	}
 }
