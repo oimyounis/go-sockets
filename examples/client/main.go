@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"log"
 	"strconv"
+	"time"
 
 	"go-sockets/client"
 )
@@ -30,11 +31,7 @@ func mbSlice(size string) []byte {
 }
 
 func main() {
-	socket, err := client.New("localhost:9090")
-
-	if err != nil {
-		log.Fatalf("Couldn't connect to server: %v", err)
-	}
+	socket := client.New("localhost:9090")
 
 	// go func() {
 	// 	for {
@@ -46,50 +43,28 @@ func main() {
 	socket.On("connection", func(_ string) {
 		log.Println("connected to server")
 
-		// socket.Send("test2", string(bytes.Repeat([]byte{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'}, 445123)))
-		// socket.EmitSync("test", string([]byte{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}))
-		// 	time.Sleep(time.Second)
-		// }
-		// }()
-	})
+		go func() {
+			for {
+				// socket.EmitSync("test11", bytes.Repeat([]byte{2}, mbToInt("3m")))
 
-	socket.On("test11", func(data string) {
-		c := bytes.Count([]byte(data), []byte{2})
-		if c != mbToInt("3m") {
-			log.Fatalln("test11 len mismatch", c)
-		}
-		log.Println("test11:", c)
-	})
-	socket.On("test2", func(data string) {
-		c := bytes.Count([]byte(data), []byte{3})
-		if c != mbToInt("2m") {
-			log.Fatalln("test2 len mismatch", c)
-		}
-		log.Println("test2:", c)
-	})
+				buff := []byte{}
+				for i := 0; i < mbToInt("100b"); i++ {
+					buff = append(buff, byte(i))
+				}
 
-	socket.On("testee", func(data string) {
-		// log.Println("testee", len(data))
-	})
-	socket.On("testee2", func(data string) {
-		// log.Println("testee2", len(data))
-	})
-
-	socket.On("pong", func(data string) {
-		log.Printf("pong:%v", data)
-	})
-
-	socket.On("socket-joined", func(data string) {
-		log.Printf("FROM SERVER: %v\n", data)
-	})
-
-	socket.On("socket-left", func(data string) {
-		log.Printf("FROM SERVER: %v\n", data)
+				socket.Emit("test2", buff)
+				time.Sleep(time.Second * 5)
+			}
+		}()
 	})
 
 	socket.On("disconnection", func(_ string) {
 		log.Println("disconnection: disconnected from server")
 	})
 
-	socket.Listen()
+	err := socket.Listen()
+
+	if err != nil {
+		log.Fatalf("Couldn't connect to server: %v", err)
+	}
 }

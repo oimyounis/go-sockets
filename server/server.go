@@ -195,7 +195,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	// log.Printf("Accepted connection from %v\n", conn.RemoteAddr().String())
 	socket := s.addSocket(conn)
 	s.connectEvent(socket)
-	go socket.startHeartbeat()
+	// go socket.startHeartbeat()
 	socket.listen()
 }
 
@@ -207,14 +207,24 @@ func (s *Socket) listen() {
 			break
 		}
 
-		size := make([]byte, 4)
-		n, err := sockBuffer.Read(size)
-		if err != nil || n != 4 {
-			// log.Println("err", err, n)
+		header := make([]byte, 6)
+		n, err := sockBuffer.Read(header)
+		if err != nil || n != 6 {
+			log.Println("err", err, n, header)
 			break
 		}
 
-		sizeVal := int(binary.BigEndian.Uint32(size))
+		if !s.connected {
+			break
+		}
+
+		log.Println("header", header)
+
+		sizeVal := int(binary.BigEndian.Uint16(header[0:2]))
+
+		log.Println("sizeVal", sizeVal)
+
+		log.Println("frameType", header[5])
 
 		payload := make([]byte, sizeVal)
 		n, err = io.ReadFull(sockBuffer, payload)
@@ -223,18 +233,21 @@ func (s *Socket) listen() {
 			break
 		}
 
-		frameType := payload[0]
+		// log.Println("payload", payload)
 
-		switch frameType {
-		case byte(FRAME_TYPE_MESSAGE):
-			processMessageFrame(s, payload[1:])
-		case byte(FRAME_TYPE_HEARTBEAT):
-			raw(s, []byte{}, FRAME_TYPE_HEARTBEAT_ACK)
-		case byte(FRAME_TYPE_HEARTBEAT_ACK):
-			s.lastHeartbeatAck = time.Now().UnixNano() / 1000000
-		default:
-			log.Fatalln("unknown frame type", frameType, payload)
-		}
+		// frameType := payload[0]
+
+		// switch frameType {
+		// case byte(FRAME_TYPE_MESSAGE):
+		// 	processMessageFrame(s, payload[1:])
+		// case byte(FRAME_TYPE_HEARTBEAT):
+		// 	log.Println("heartbeat in", time.Now().UnixNano()/1000000)
+		// 	raw(s, []byte{}, FRAME_TYPE_HEARTBEAT_ACK)
+		// case byte(FRAME_TYPE_HEARTBEAT_ACK):
+		// 	s.lastHeartbeatAck = time.Now().UnixNano() / 1000000
+		// default:
+		// 	log.Fatalln("unknown frame type", frameType, payload)
+		// }
 	}
 	s.disconnect()
 }

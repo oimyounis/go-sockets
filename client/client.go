@@ -21,7 +21,7 @@ const (
 )
 
 const (
-	HEARTBEAT_INTERVAL = 5
+	HEARTBEAT_INTERVAL = 2
 )
 
 type ConnectionHandler func(socket *Socket)
@@ -34,6 +34,8 @@ type Socket struct {
 	events           map[string]MessageHandler
 	connected        bool
 	lastHeartbeatAck int64
+	messageQueue     chan []byte
+	messageSequence  uint16
 }
 
 func (s *Socket) Start() error {
@@ -52,6 +54,7 @@ func (s *Socket) Listen() error {
 		return err
 	}
 	s.envokeEvent("connection", "")
+	go s.processQueue()
 	go s.startHeartbeat()
 	s.listen()
 	return nil
@@ -96,6 +99,18 @@ func (s *Socket) envokeEvent(name, data string) {
 	}
 }
 
+func (s *Socket) processQueue() {
+	for {
+		if !s.connected {
+			break
+		}
+		select {
+		case frame := <-s.messageQueue:
+			rawBytes(s, frame)
+		}
+	}
+}
+
 func (s *Socket) startHeartbeat() {
 	time.Sleep(time.Second * 2)
 	for {
@@ -103,8 +118,8 @@ func (s *Socket) startHeartbeat() {
 			break
 		}
 
-		// log.Println("sending heartbeat")
 		start := time.Now().UnixNano() / 1000000
+		log.Println("sending heartbeat", start)
 		raw(s, []byte{}, FRAME_TYPE_HEARTBEAT)
 		time.Sleep(time.Second * HEARTBEAT_INTERVAL)
 		if !s.connected {
@@ -112,7 +127,7 @@ func (s *Socket) startHeartbeat() {
 		}
 		if s.lastHeartbeatAck == 0 || s.lastHeartbeatAck-start > HEARTBEAT_INTERVAL*1000 {
 			// log.Println("disconnecting from server")
-			break
+			// break
 		}
 		log.Println("HEARTBEAT OK")
 	}
@@ -207,59 +222,156 @@ func emit(socket *Socket, event string, data []byte) error {
 		return fmt.Errorf("Event Name length exceeds the maximum of %v bytes\n", 1<<16-2)
 	}
 
-	headerBuff := []byte{0, 0, 0, 0}
+	bufferedBytes := 0
+	dataLen := len(data)
 
-	payload := []byte{0, 0}
+	log.Println("sending", dataLen, "bytes")
 
-	eventBytes := []byte(event)
-	eventLen := len(eventBytes)
-	binary.BigEndian.PutUint16(payload, uint16(eventLen))
+	header := []byte{0, 0, 0, 0, 0, byte(FRAME_TYPE_MESSAGE)}
 
-	payload = append(payload, eventBytes...)
-	payload = append(payload, data...)
+	binary.BigEndian.PutUint16(header[2:4], socket.messageSequence)
 
-	binary.BigEndian.PutUint32(headerBuff, uint32(len(payload)+1))
-	headerBuff = append(headerBuff, byte(FRAME_TYPE_MESSAGE))
-
-	frameBuff := []byte{}
-	frameBuff = append(frameBuff, headerBuff...)
-	frameBuff = append(frameBuff, payload...)
-
-	time.Sleep(time.Microsecond * 500)
-	if _, err := socket.connection.Write(frameBuff); err != nil {
-		return fmt.Errorf("Error writing to underlying connection: %v", err)
+	if socket.messageSequence == 1<<16-1 {
+		socket.messageSequence = 0
+	} else {
+		socket.messageSequence++
 	}
+
+	for bufferedBytes < dataLen {
+		headerLen := len(header)
+
+		frameEnd := bufferedBytes + (FRAME_SIZE - headerLen)
+		if frameEnd > dataLen {
+			frameEnd = bufferedBytes + (dataLen - bufferedBytes)
+		}
+		dataSlice := data[bufferedBytes:frameEnd]
+		sliceLen := len(dataSlice)
+
+		frameLen := sliceLen + headerLen
+
+		binary.BigEndian.PutUint16(header, uint16(frameLen-6))
+
+		buff := []byte{}
+
+		buff = append(buff, header...)
+		buff = append(buff, dataSlice...)
+
+		bufferedBytes += sliceLen
+		log.Println("sliceLen", sliceLen)
+
+		if bufferedBytes == dataLen {
+			buff[4] = 2
+		} else if bufferedBytes != 0 {
+			header[4] = 1
+		}
+
+		socket.messageQueue <- buff
+	}
+
+	log.Println("finished sending", dataLen, "bytes")
+
+	// headerBuff := []byte{0, 0, 0, 0}
+
+	// payload := []byte{0, 0}
+
+	// eventBytes := []byte(event)
+	// eventLen := len(eventBytes)
+	// binary.BigEndian.PutUint16(payload, uint16(eventLen))
+
+	// payload = append(payload, eventBytes...)
+	// payload = append(payload, data...)
+
+	// binary.BigEndian.PutUint32(headerBuff, uint32(len(payload)+1))
+	// headerBuff = append(headerBuff, byte(FRAME_TYPE_MESSAGE))
+
+	// frameBuff := []byte{}
+	// frameBuff = append(frameBuff, headerBuff...)
+	// frameBuff = append(frameBuff, payload...)
+
+	// time.Sleep(time.Microsecond * 500)
+	// fmt.Println("writing", len(frameBuff), "bytes")
+	// if _, err := socket.connection.Write(frameBuff); err != nil {
+	// 	return fmt.Errorf("Error writing to underlying connection: %v", err)
+	// }
 	return nil
 }
 
-func buildFrame(data []byte, frameType FrameType) ([]byte, error) {
-	headerBuff := []byte{0, 0, 0, 0}
+// func buildFrame(data []byte, frameType FrameType) ([]byte, error) {
+// 	headerBuff := []byte{0, 0, 0, 0}
 
-	payload := []byte{}
+// 	payload := []byte{}
 
-	payload = append(payload, data...)
+// 	payload = append(payload, data...)
 
-	binary.BigEndian.PutUint32(headerBuff, uint32(len(payload)+1))
-	headerBuff = append(headerBuff, byte(frameType))
+// 	binary.BigEndian.PutUint32(headerBuff, uint32(len(payload)+1))
+// 	headerBuff = append(headerBuff, byte(frameType))
 
-	frameBuff := []byte{}
-	frameBuff = append(frameBuff, headerBuff...)
-	frameBuff = append(frameBuff, payload...)
+// 	frameBuff := []byte{}
+// 	frameBuff = append(frameBuff, headerBuff...)
+// 	frameBuff = append(frameBuff, payload...)
 
-	return frameBuff, nil
-}
+// 	return frameBuff, nil
+// }
 
 func raw(socket *Socket, data []byte, frameType FrameType) {
 	if !socket.connected {
 		return
 	}
-	frame, err := buildFrame(data, frameType)
-	if err != nil {
-		return
-	}
-	time.Sleep(time.Microsecond * 500)
 
-	if _, err = socket.connection.Write(frame); err != nil {
+	bufferedBytes := 0
+	dataLen := len(data)
+
+	log.Println("raw sending", dataLen, "bytes")
+
+	header := []byte{0, 0, 0, 0, 0, byte(frameType)}
+
+	binary.BigEndian.PutUint16(header[2:4], socket.messageSequence)
+
+	if socket.messageSequence == 1<<16-1 {
+		socket.messageSequence = 0
+	} else {
+		socket.messageSequence++
+	}
+
+	if dataLen > 0 {
+		for bufferedBytes < dataLen {
+			headerLen := len(header)
+
+			frameEnd := bufferedBytes + (FRAME_SIZE - headerLen)
+			if frameEnd > dataLen {
+				frameEnd = bufferedBytes + (dataLen - bufferedBytes)
+			}
+			dataSlice := data[bufferedBytes:frameEnd]
+			sliceLen := len(dataSlice)
+
+			frameLen := sliceLen + headerLen
+
+			binary.BigEndian.PutUint16(header, uint16(frameLen-6))
+
+			buff := []byte{}
+
+			buff = append(buff, header...)
+			buff = append(buff, dataSlice...)
+
+			bufferedBytes += sliceLen
+
+			if bufferedBytes == dataLen {
+				buff[4] = 2
+			} else if bufferedBytes != 0 {
+				header[4] = 1
+			}
+
+			socket.messageQueue <- buff
+		}
+	} else {
+		header[4] = 2
+		socket.messageQueue <- header
+	}
+}
+
+func rawBytes(socket *Socket, frame []byte) {
+	log.Println("rawBytes", frame)
+	if _, err := socket.connection.Write(frame); err != nil {
 		return
 	}
 }
@@ -270,9 +382,10 @@ func send(socket *Socket, event, data string) {
 
 func New(address string) *Socket {
 	return &Socket{
-		address:    address,
-		connection: nil,
-		events:     map[string]MessageHandler{},
-		connected:  true,
+		address:      address,
+		connection:   nil,
+		events:       map[string]MessageHandler{},
+		connected:    true,
+		messageQueue: make(chan []byte),
 	}
 }
