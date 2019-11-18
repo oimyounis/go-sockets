@@ -32,11 +32,7 @@ import (
 
 2. Initialize a new server instance
 ```go
-srv, err := server.New(":8000")
-
-if err != nil {
-    log.Fatalf("Failed to start server: %v\n", err)
-}
+srv := server.New(":8000")
 ```
 ***New*** takes a single argument, ***address*** that the server will listen on in the format *\<hostname_or_IP\>:\<port\>*. For example: *127.0.0.1:9000*.
 
@@ -58,7 +54,11 @@ Here we setup an event handler that will fire when a client connects to us then 
 
 4. Start the server
 ```go
-srv.Listen()
+err := srv.Listen()
+
+if err != nil {
+    log.Fatalf("Failed to start server: %v\n", err)
+}
 ```
 ***Listen*** blocks the current thread listening for connections.
 
@@ -76,11 +76,7 @@ import (
 
 2. Initialize a new client instance
 ```go
-socket, err := client.New("localhost:8000")
-
-if err != nil {
-    log.Fatalf("Couldn't connect to server: %v\n", err)
-}
+socket := client.New("localhost:8000")
 ```
 Same as with the server, ***New*** takes a single argument, ***address*** that points to the server's address in the format *\<hostname_or_IP\>:\<port\>*. For example: *127.0.0.1:9000*.
 
@@ -108,6 +104,10 @@ Here we setup an event handler that will fire when the client connects to the se
 4. Start the client
 ```go
 socket.Listen()
+
+if err != nil {
+    log.Fatalf("Couldn't connect to server: %v\n", err)
+}
 ```
 ***Listen*** blocks the current thread listening for data.
 
