@@ -48,11 +48,17 @@ func main() {
 				// socket.EmitSync("test11", bytes.Repeat([]byte{2}, mbToInt("3m")))
 
 				buff := []byte{}
-				for i := 0; i < mbToInt("100b"); i++ {
+				for i := 0; i < mbToInt("100k"); i++ {
 					buff = append(buff, byte(i))
 				}
 
+				buff2 := []byte{}
+				for i := 0; i < mbToInt("500k"); i++ {
+					buff2 = append(buff2, byte(i))
+				}
+
 				socket.Emit("test2", buff)
+				socket.Emit("test2", buff2)
 				time.Sleep(time.Second * 5)
 			}
 		}()

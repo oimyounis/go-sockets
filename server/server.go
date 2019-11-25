@@ -16,7 +16,7 @@ import (
 type FrameType byte
 
 const (
-	FRAME_SIZE               int       = 1024
+	FRAME_SIZE               int       = 4096
 	FRAME_TYPE_MESSAGE       FrameType = 90
 	FRAME_TYPE_HEARTBEAT     FrameType = 91
 	FRAME_TYPE_HEARTBEAT_ACK FrameType = 92
@@ -214,10 +214,6 @@ func (s *Socket) listen() {
 			break
 		}
 
-		if !s.connected {
-			break
-		}
-
 		log.Println("header", header)
 
 		sizeVal := int(binary.BigEndian.Uint16(header[0:2]))
@@ -230,6 +226,10 @@ func (s *Socket) listen() {
 		n, err = io.ReadFull(sockBuffer, payload)
 		if err != nil || n != sizeVal {
 			// log.Println("err2", err, n, len(payload))
+			break
+		}
+
+		if !s.connected {
 			break
 		}
 

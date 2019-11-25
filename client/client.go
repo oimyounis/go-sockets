@@ -8,24 +8,90 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"time"
 )
 
 type FrameType byte
 
 const (
-	FRAME_SIZE               int       = 1024
+	FRAME_SIZE               int       = 4096
 	FRAME_TYPE_MESSAGE       FrameType = 90
 	FRAME_TYPE_HEARTBEAT     FrameType = 91
 	FRAME_TYPE_HEARTBEAT_ACK FrameType = 92
 )
 
 const (
-	HEARTBEAT_INTERVAL = 2
+	HEARTBEAT_INTERVAL = 1
 )
 
 type ConnectionHandler func(socket *Socket)
 type MessageHandler func(data string)
+
+type BuffQueue struct {
+	currentIndex int
+	queue        [][]byte
+	rwm          sync.RWMutex
+}
+
+func (q *BuffQueue) len() int {
+	return len(q.queue)
+}
+
+func (q *BuffQueue) next() []byte {
+	if q.currentIndex == q.len() {
+		return nil
+	}
+	idx := q.currentIndex
+	q.currentIndex++
+	q.rwm.RLock()
+	defer q.rwm.RUnlock()
+	buff := q.queue[idx]
+	return buff
+}
+
+func (q *BuffQueue) append(buff []byte) {
+	q.rwm.Lock()
+	defer q.rwm.Unlock()
+	q.queue = append(q.queue, buff)
+}
+
+type RoundRobinBuffer struct {
+	queue map[int]*BuffQueue
+	mutex sync.RWMutex
+}
+
+func (rrb *RoundRobinBuffer) append(seq int, buff []byte) {
+	rrb.mutex.Lock()
+	defer rrb.mutex.Unlock()
+
+	q, ok := rrb.queue[seq]
+	if !ok {
+		q = &BuffQueue{}
+		rrb.queue[seq] = q
+	}
+	q.append(buff)
+}
+
+func (rrb *RoundRobinBuffer) keys() []int {
+	rrb.mutex.RLock()
+	defer rrb.mutex.RUnlock()
+	keys := make([]int, len(rrb.queue))
+	for k, _ := range rrb.queue {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func (rrb *RoundRobinBuffer) clean(seq int) {
+	rrb.mutex.Lock()
+	defer rrb.mutex.Unlock()
+	delete(rrb.queue, seq)
+}
+
+func NewRoundRobinBuffer() *RoundRobinBuffer {
+	return &RoundRobinBuffer{queue: make(map[int]*BuffQueue)}
+}
 
 type Socket struct {
 	Id               string
@@ -36,6 +102,8 @@ type Socket struct {
 	lastHeartbeatAck int64
 	messageQueue     chan []byte
 	messageSequence  uint16
+	buffer           *RoundRobinBuffer
+	writer           *bufio.Writer
 }
 
 func (s *Socket) Start() error {
@@ -80,6 +148,8 @@ func (s *Socket) connect() error {
 		return err
 	}
 	s.connection = conn
+	s.buffer = NewRoundRobinBuffer()
+	s.writer = bufio.NewWriter(s.connection)
 	return nil
 }
 
@@ -104,15 +174,27 @@ func (s *Socket) processQueue() {
 		if !s.connected {
 			break
 		}
-		select {
-		case frame := <-s.messageQueue:
-			rawBytes(s, frame)
+
+		ks := s.buffer.keys()
+		for key := range ks {
+			if queue, ok := s.buffer.queue[key]; ok {
+				if frame := queue.next(); frame != nil {
+					rawBytes(s, frame)
+				} else {
+					s.buffer.clean(key)
+				}
+			}
+
+			time.Sleep(time.Millisecond * 1)
+			ks = s.buffer.keys()
 		}
+
+		time.Sleep(time.Millisecond * 5)
 	}
 }
 
 func (s *Socket) startHeartbeat() {
-	time.Sleep(time.Second * 2)
+	// time.Sleep(time.Second * 2)
 	for {
 		if !s.connected {
 			break
@@ -257,7 +339,6 @@ func emit(socket *Socket, event string, data []byte) error {
 		buff = append(buff, dataSlice...)
 
 		bufferedBytes += sliceLen
-		log.Println("sliceLen", sliceLen)
 
 		if bufferedBytes == dataLen {
 			buff[4] = 2
@@ -265,7 +346,7 @@ func emit(socket *Socket, event string, data []byte) error {
 			header[4] = 1
 		}
 
-		socket.messageQueue <- buff
+		socket.buffer.append(int(socket.messageSequence), buff)
 	}
 
 	log.Println("finished sending", dataLen, "bytes")
@@ -321,7 +402,7 @@ func raw(socket *Socket, data []byte, frameType FrameType) {
 	bufferedBytes := 0
 	dataLen := len(data)
 
-	log.Println("raw sending", dataLen, "bytes")
+	// log.Println("raw sending", dataLen, "bytes")
 
 	header := []byte{0, 0, 0, 0, 0, byte(frameType)}
 
@@ -361,17 +442,17 @@ func raw(socket *Socket, data []byte, frameType FrameType) {
 				header[4] = 1
 			}
 
-			socket.messageQueue <- buff
+			socket.buffer.append(int(socket.messageSequence), buff)
 		}
 	} else {
 		header[4] = 2
-		socket.messageQueue <- header
+		socket.buffer.append(int(socket.messageSequence), header)
 	}
 }
 
 func rawBytes(socket *Socket, frame []byte) {
-	log.Println("rawBytes", frame)
-	if _, err := socket.connection.Write(frame); err != nil {
+	log.Println("rawBytes", frame[:6])
+	if _, err := socket.writer.Write(frame); err != nil {
 		return
 	}
 }
