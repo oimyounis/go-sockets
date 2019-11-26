@@ -186,7 +186,7 @@ func (s *Socket) startHeartbeat() {
 			// log.Println("disconnecting from server")
 			break
 		}
-		log.Println("HEARTBEAT OK")
+		// log.Println("HEARTBEAT OK")
 	}
 	s.disconnect()
 }
@@ -202,57 +202,68 @@ func (s *Server) handleConnection(conn net.Conn) {
 func (s *Socket) listen() {
 	sockBuffer := bufio.NewReader(s.connection)
 
+	batchQueue := map[int][]byte{}
+
 	for {
 		if !s.connected {
 			break
 		}
 
+		// log.Println("(1) will read")
+
 		header := make([]byte, 6)
 		n, err := sockBuffer.Read(header)
 		if err != nil || n != 6 {
 			log.Println("err", err, n, header)
-			break
+			break // TODO: should be continue in production
 		}
 
-		log.Println("header", header)
+		payloadLen := int(binary.BigEndian.Uint16(header[0:2]))
 
-		sizeVal := int(binary.BigEndian.Uint16(header[0:2]))
+		// log.Printf("(2) header: %v - payloadLen: %v", header, payloadLen)
 
-		log.Println("sizeVal", sizeVal)
-
-		log.Println("frameType", header[5])
-
-		payload := make([]byte, sizeVal)
+		payload := make([]byte, payloadLen)
 		n, err = io.ReadFull(sockBuffer, payload)
-		if err != nil || n != sizeVal {
-			// log.Println("err2", err, n, len(payload))
-			break
+
+		// log.Println("(3) read", header, n)
+
+		if err != nil || n != payloadLen {
+			log.Println("err2", err, n, len(payload))
+			break // TODO: should be continue in production
 		}
 
 		if !s.connected {
 			break
 		}
 
-		// log.Println("payload", payload)
+		frameType := header[5]
+		msgSeq := int(binary.BigEndian.Uint16(header[2:4]))
+		isLast := header[4] == 2
 
-		// frameType := payload[0]
+		// log.Printf("(4) frameType: %v - msgSeq: %v - pos: %v - payloadLen: %v", frameType, msgSeq, header[4], payloadLen)
 
-		// switch frameType {
-		// case byte(FRAME_TYPE_MESSAGE):
-		// 	processMessageFrame(s, payload[1:])
-		// case byte(FRAME_TYPE_HEARTBEAT):
-		// 	log.Println("heartbeat in", time.Now().UnixNano()/1000000)
-		// 	raw(s, []byte{}, FRAME_TYPE_HEARTBEAT_ACK)
-		// case byte(FRAME_TYPE_HEARTBEAT_ACK):
-		// 	s.lastHeartbeatAck = time.Now().UnixNano() / 1000000
-		// default:
-		// 	log.Fatalln("unknown frame type", frameType, payload)
-		// }
+		batchQueue[msgSeq] = append(batchQueue[msgSeq], payload...)
+
+		if isLast {
+			switch frameType {
+			case byte(FRAME_TYPE_MESSAGE):
+				processMessageBatch(s, batchQueue[msgSeq])
+			case byte(FRAME_TYPE_HEARTBEAT):
+				log.Println("heartbeat in", time.Now().UnixNano()/1000000)
+				raw(s, []byte{}, FRAME_TYPE_HEARTBEAT_ACK)
+			case byte(FRAME_TYPE_HEARTBEAT_ACK):
+				s.lastHeartbeatAck = time.Now().UnixNano() / 1000000
+			default:
+				log.Fatalln("unknown frame type", frameType, payload)
+			}
+
+			delete(batchQueue, msgSeq)
+		}
 	}
 	s.disconnect()
 }
 
-func processMessageFrame(s *Socket, frame []byte) {
+func processMessageBatch(s *Socket, frame []byte) {
 	frameLen := len(frame)
 	if frameLen > 3 {
 		eventLen := binary.BigEndian.Uint16(frame[:2])

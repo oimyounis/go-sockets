@@ -42,19 +42,37 @@ func main() {
 	srv.OnConnection(func(socket *server.Socket) {
 		log.Printf("socket connected with id: %v\n", socket.Id)
 
-		socket.On("test11", func(data string) {
-			c := bytes.Count([]byte(data), []byte{2})
-			if c != mbToInt("3m") {
-				log.Fatalln("test11 len mismatch", c)
-			}
-			log.Println("test11:", c)
-		})
 		socket.On("test2", func(data string) {
-			c := bytes.Count([]byte(data), []byte{3})
-			if c != mbToInt("200k") {
-				log.Fatalln("test2 len mismatch", c)
+			// c := bytes.Count([]byte(data), []byte{2})
+			lenn := len(data)
+			if lenn != mbToInt("1k") {
+				log.Fatalln("test2 len mismatch", lenn)
 			}
-			log.Println("test2:", c)
+			log.Println("test2:", lenn)
+		})
+		socket.On("test3", func(data string) {
+			// c := bytes.Count([]byte(data), []byte{2})
+			lenn := len(data)
+			if lenn != mbToInt("4k") {
+				log.Fatalln("test3 len mismatch", lenn)
+			}
+			log.Println("test3:", lenn)
+		})
+		socket.On("test4", func(data string) {
+			// c := bytes.Count([]byte(data), []byte{2})
+			lenn := len(data)
+			if lenn != mbToInt("3k") {
+				log.Fatalln("test4 len mismatch", lenn)
+			}
+			log.Println("test4:", lenn)
+		})
+		socket.On("test5", func(data string) {
+			// c := bytes.Count([]byte(data), []byte{2})
+			lenn := len(data)
+			if lenn != mbToInt("7k") {
+				log.Fatalln("test5 len mismatch", lenn)
+			}
+			log.Println("test5:", lenn)
 		})
 	})
 
