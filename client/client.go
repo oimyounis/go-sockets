@@ -23,7 +23,7 @@ const (
 )
 
 const (
-	HEARTBEAT_INTERVAL = 1
+	HEARTBEAT_INTERVAL = 2
 )
 
 type ConnectionHandler func(socket *Socket)
@@ -57,7 +57,7 @@ func (q *BuffQueue) append(buff []byte) {
 }
 
 type RoundRobinBuffer struct {
-	queue map[int]*BuffQueue
+	queue sync.Map
 	mutex sync.RWMutex
 }
 
@@ -65,13 +65,12 @@ func (rrb *RoundRobinBuffer) append(seq int, buff []byte) {
 	rrb.mutex.Lock()
 	defer rrb.mutex.Unlock()
 
-	q, ok := rrb.queue[seq]
-	if !ok {
-		q = &BuffQueue{}
-		rrb.queue[seq] = q
-	}
+	q, _ := rrb.queue.LoadOrStore(seq, &BuffQueue{})
+
 	if q != nil {
-		q.append(buff)
+		if q, ok := q.(*BuffQueue); ok {
+			q.append(buff)
+		}
 	}
 }
 
@@ -79,11 +78,11 @@ func (rrb *RoundRobinBuffer) clean(seq int) {
 	rrb.mutex.Lock()
 	defer rrb.mutex.Unlock()
 	// delete(rrb.queue, seq)
-	rrb.queue[seq] = nil
+	rrb.queue.Store(seq, nil)
 }
 
 func NewRoundRobinBuffer() *RoundRobinBuffer {
-	return &RoundRobinBuffer{queue: make(map[int]*BuffQueue)}
+	return &RoundRobinBuffer{}
 }
 
 type Sequencer struct {
@@ -120,6 +119,7 @@ type Socket struct {
 	lastHeartbeatAck int64
 	sequence         *Sequencer
 	buffer           *RoundRobinBuffer
+	bytesSent        uint64
 }
 
 func (s *Socket) Start() error {
@@ -139,7 +139,7 @@ func (s *Socket) Listen() error {
 	}
 	s.envokeEvent("connection", "")
 	go s.processSendQueue()
-	// go s.startHeartbeat()
+	go s.startHeartbeat()
 	s.listen()
 	return nil
 }
@@ -185,31 +185,48 @@ func (s *Socket) envokeEvent(name, data string) {
 }
 
 func (s *Socket) processSendQueue() {
+	go func() {
+		for {
+			time.Sleep(time.Second * 5)
+			log.Println(s.bytesSent)
+		}
+	}()
 	// var printLock sync.Mutex
 	for {
 		if !s.connected {
 			break
 		}
 
-		for i, queue := range s.buffer.queue {
+		if s.bytesSent >= 512000 {
+			time.Sleep(time.Millisecond)
+			continue
+		}
+
+		s.buffer.queue.Range(func(i, queue interface{}) bool {
 			if queue == nil {
-				continue
+				return true
+			}
+			if queue, ok := queue.(*BuffQueue); ok {
+				if frame := queue.next(); frame != nil {
+					rawBytes(s, frame)
+				} else {
+					if i, iok := i.(int); iok {
+						s.buffer.clean(i)
+					}
+					return true
+				}
 			}
 
-			if frame := queue.next(); frame != nil {
-				rawBytes(s, frame)
-			} else {
-				s.buffer.clean(i)
-				continue
-			}
-		}
+			time.Sleep(time.Millisecond * 1)
+
+			return true
+		})
 
 		// printLock.Lock()
 		// log.Println(s.buffer.queue)
 		// printLock.Unlock()
 
 		// time.Sleep(time.Second * 1)
-		time.Sleep(time.Millisecond * 1)
 
 		// ks := s.buffer.keys()
 		// log.Println("keys", ks)
@@ -493,6 +510,7 @@ func rawBytes(socket *Socket, frame []byte) {
 		log.Println("rawBytes err", frame[:6], err)
 		return
 	}
+	socket.bytesSent += uint64(len(frame))
 }
 
 func send(socket *Socket, event, data string) {

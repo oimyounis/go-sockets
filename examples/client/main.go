@@ -72,7 +72,7 @@ func main() {
 				socket.Emit("test5", buff4)
 				socket.Emit("test3", buff3)
 
-				time.Sleep(time.Second * 10)
+				time.Sleep(time.Second * 1)
 			}
 		}()
 	})
