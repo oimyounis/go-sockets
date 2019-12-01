@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"log"
 	"strconv"
-	"time"
 
 	"go-sockets/server"
 )
@@ -31,11 +30,7 @@ func mbSlice(size string) []byte {
 }
 
 func main() {
-	srv, err := server.New(":9090")
-
-	if err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
+	srv := server.New(":9090")
 
 	// go func() {
 	// 	for {
@@ -47,35 +42,47 @@ func main() {
 	srv.OnConnection(func(socket *server.Socket) {
 		log.Printf("socket connected with id: %v\n", socket.Id)
 
-		go func() {
-			for {
-				socket.Emit("test11", bytes.Repeat([]byte{2}, mbToInt("3m")))
-				socket.Emit("test2", bytes.Repeat([]byte{3}, mbToInt("2m")))
-				time.Sleep(time.Millisecond * 100)
+		socket.On("test2", func(data string) {
+			// c := bytes.Count([]byte(data), []byte{2})
+			lenn := len(data)
+			if lenn != mbToInt("15k") {
+				log.Fatalln("test2 len mismatch", lenn)
 			}
-		}()
-
-		// go func() {
-		// for {
-		// socket.Emit("testee", mbSlice("20m"))
-		// socket.Emit("testee2", mbSlice("500k"))
-		// time.Sleep(time.Millisecond * 2)
-		// }
-		// }()
-
-		// socket.On("ping", func(data string) {
-		// 	log.Println("message received on event: ping: " + data)
-
-		// 	socket.Emit("pong", fmt.Sprintf("wfwefwef\n\n%v", time.Now().Unix()))
-		// })
-
-		// socket.Broadcast("socket-joined", fmt.Sprintf("a socket joined with id: %v", socket.Id))
+			log.Println("test2:", lenn)
+		})
+		socket.On("test3", func(data string) {
+			// c := bytes.Count([]byte(data), []byte{2})
+			lenn := len(data)
+			if lenn != mbToInt("4k") {
+				log.Fatalln("test3 len mismatch", lenn)
+			}
+			log.Println("test3:", lenn)
+		})
+		socket.On("test4", func(data string) {
+			// c := bytes.Count([]byte(data), []byte{2})
+			lenn := len(data)
+			if lenn != mbToInt("15b") {
+				log.Fatalln("test4 len mismatch", lenn)
+			}
+			log.Println("test4:", lenn)
+		})
+		socket.On("test5", func(data string) {
+			// c := bytes.Count([]byte(data), []byte{2})
+			lenn := len(data)
+			if lenn != mbToInt("7k") {
+				log.Fatalln("test5 len mismatch", lenn)
+			}
+			log.Println("test5:", lenn)
+		})
 	})
 
 	srv.OnDisconnection(func(socket *server.Socket) {
 		log.Printf("socket disconnected with id: %v\n", socket.Id)
-		// socket.Broadcast("socket-left", fmt.Sprintf("a socket left with id: %v", socket.Id))
 	})
 
-	srv.Listen()
+	err := srv.Listen()
+
+	if err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
 }
