@@ -2,7 +2,7 @@
 go-sockets is an event-driven TCP sockets framework that allows you to create a server/client architecture with ease based on named events.
 
 ## Project Status
-go-sockets is currently in an early development stage and is not ready for production use, yet.
+go-sockets is currently in an early development stage and is not ready for production use yet.
 
 ## Installation
 ### Dependencies
@@ -36,7 +36,7 @@ srv := server.New(":8000")
 ```
 ***New*** takes a single argument, ***address*** that the server will listen on in the format *\<hostname_or_IP\>:\<port\>*. For example: *127.0.0.1:9000*.
 
-3. Set the OnConnect event handler
+3. Set the OnConnection event handler
 ```go
 srv.OnConnection(func(socket *server.Socket) {
     log.Printf("socket connected with id: %v\n", socket.Id)
@@ -82,7 +82,7 @@ Same as with the server, ***New*** takes a single argument, ***address*** that p
 
 3. Set event handlers
 ```go
-socket.On("connection", func(data string) {
+socket.On("connection", func(_ string) {
     log.Println("connected to server")
 
     go func() {
@@ -103,7 +103,7 @@ Here we setup an event handler that will fire when the client connects to the se
 
 4. Start the client
 ```go
-socket.Listen()
+err := socket.Listen()
 
 if err != nil {
     log.Fatalf("Couldn't connect to server: %v\n", err)
