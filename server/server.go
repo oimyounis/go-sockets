@@ -247,7 +247,7 @@ func (s *Socket) listen() {
 		if isLast {
 			switch frameType {
 			case byte(FRAME_TYPE_MESSAGE):
-				processMessageBatch(s, batchQueue[msgSeq])
+				processMessageBatch(s, batchQueue[msgSeq], msgSeq)
 			case byte(FRAME_TYPE_HEARTBEAT):
 				log.Println("heartbeat in", time.Now().UnixNano()/1000000)
 				raw(s, []byte{}, FRAME_TYPE_HEARTBEAT_ACK)
@@ -263,14 +263,17 @@ func (s *Socket) listen() {
 	s.disconnect()
 }
 
-func processMessageBatch(s *Socket, frame []byte) {
-	frameLen := len(frame)
-	if frameLen > 3 {
-		eventLen := binary.BigEndian.Uint16(frame[:2])
+func processMessageBatch(s *Socket, batch []byte, msgSeq int) {
+	batchLen := len(batch)
+	if batchLen > 3 {
+		eventLen := binary.BigEndian.Uint16(batch[:2])
 		eventEnd := int(2 + eventLen)
-		eventName := string(frame[2:eventEnd])
+		if eventEnd > len(batch) {
+			log.Println(eventLen, eventEnd, batchLen, msgSeq, batch)
+		}
+		eventName := string(batch[2:eventEnd])
 
-		data := frame[eventEnd:]
+		data := batch[eventEnd:]
 
 		go s.envokeEvent(eventName, string(data))
 	}

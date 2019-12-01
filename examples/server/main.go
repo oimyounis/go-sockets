@@ -45,7 +45,7 @@ func main() {
 		socket.On("test2", func(data string) {
 			// c := bytes.Count([]byte(data), []byte{2})
 			lenn := len(data)
-			if lenn != mbToInt("1k") {
+			if lenn != mbToInt("15k") {
 				log.Fatalln("test2 len mismatch", lenn)
 			}
 			log.Println("test2:", lenn)
@@ -61,7 +61,7 @@ func main() {
 		socket.On("test4", func(data string) {
 			// c := bytes.Count([]byte(data), []byte{2})
 			lenn := len(data)
-			if lenn != mbToInt("3k") {
+			if lenn != mbToInt("15b") {
 				log.Fatalln("test4 len mismatch", lenn)
 			}
 			log.Println("test4:", lenn)

@@ -44,12 +44,12 @@ func main() {
 		log.Println("connected to server")
 
 		buff := []byte{}
-		for i := 0; i < mbToInt("1k"); i++ {
+		for i := 0; i < mbToInt("15k"); i++ {
 			buff = append(buff, byte(i))
 		}
 
 		buff2 := []byte{}
-		for i := 0; i < mbToInt("3k"); i++ {
+		for i := 0; i < mbToInt("15b"); i++ {
 			buff2 = append(buff2, byte(i))
 		}
 
@@ -72,7 +72,7 @@ func main() {
 				socket.Emit("test5", buff4)
 				socket.Emit("test3", buff3)
 
-				time.Sleep(time.Second * 1)
+				time.Sleep(time.Millisecond * 300)
 			}
 		}()
 	})
