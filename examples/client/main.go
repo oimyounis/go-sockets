@@ -33,46 +33,39 @@ func mbSlice(size string) []byte {
 func main() {
 	socket := client.New("localhost:9090")
 
-	// go func() {
-	// 	for {
-	// 		time.Sleep(time.Second * 10)
-	// 		log.Println("total sent bytes:", socket.TotalSentBytes)
-	// 	}
-	// }()
-
 	socket.On("connection", func(_ string) {
 		log.Println("connected to server")
 
 		buff := []byte{}
-		for i := 0; i < mbToInt("15k"); i++ {
+		for i := 0; i < mbToInt("30m"); i++ {
 			buff = append(buff, byte(i))
 		}
 
-		buff2 := []byte{}
-		for i := 0; i < mbToInt("15b"); i++ {
-			buff2 = append(buff2, byte(i))
-		}
+		// buff2 := []byte{}
+		// for i := 0; i < mbToInt("15b"); i++ {
+		// 	buff2 = append(buff2, byte(i))
+		// }
 
-		buff3 := []byte{}
-		for i := 0; i < mbToInt("4k"); i++ {
-			buff3 = append(buff3, byte(i))
-		}
+		// buff3 := []byte{}
+		// for i := 0; i < mbToInt("4k"); i++ {
+		// 	buff3 = append(buff3, byte(i))
+		// }
 
-		buff4 := []byte{}
-		for i := 0; i < mbToInt("7k"); i++ {
-			buff4 = append(buff4, byte(i))
-		}
+		// buff4 := []byte{}
+		// for i := 0; i < mbToInt("7k"); i++ {
+		// 	buff4 = append(buff4, byte(i))
+		// }
 
 		go func() {
 			for {
 				// socket.EmitSync("test11", bytes.Repeat([]byte{2}, mbToInt("3m")))
 
-				socket.Emit("test4", buff2)
+				// socket.Emit("test4", buff2)
 				socket.Emit("test2", buff)
-				socket.Emit("test5", buff4)
-				socket.Emit("test3", buff3)
+				// socket.Emit("test5", buff4)
+				// socket.Emit("test3", buff3)
 
-				time.Sleep(time.Millisecond * 300)
+				time.Sleep(time.Millisecond * 30000000)
 			}
 		}()
 	})

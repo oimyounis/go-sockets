@@ -15,7 +15,7 @@ import (
 type FrameType byte
 
 const (
-	// MAX_BUFFERED_BYTES       uint64    = 1024 * 512
+	MAX_BUFFERED_BYTES       uint64    = 1024 * 32
 	FRAME_SIZE               int       = 4096
 	FRAME_TYPE_MESSAGE       FrameType = 90
 	FRAME_TYPE_HEARTBEAT     FrameType = 91
@@ -24,7 +24,7 @@ const (
 )
 
 const (
-	HEARTBEAT_INTERVAL = 2
+	HEARTBEAT_INTERVAL = 5
 )
 
 type ConnectionHandler func(socket *Socket)
@@ -85,13 +85,14 @@ func (rrb *RoundRobinBuffer) clear() {
 	// rrb.mutex.Lock()
 	// defer rrb.mutex.Unlock()
 	// delete(rrb.queue, seq)
+	// log.Println("clearing nil buffers")
 	rrb.queue.Range(func(key, val interface{}) bool {
 		if val == nil {
-			log.Println(key, val)
 			rrb.queue.Delete(key)
 		}
 		return true
 	})
+	// log.Println("cleared nil buffers")
 }
 
 func NewRoundRobinBuffer() *RoundRobinBuffer {
@@ -132,7 +133,7 @@ type Socket struct {
 	lastHeartbeatAck int64
 	sequence         *Sequencer
 	buffer           *RoundRobinBuffer
-	// bytesSent        uint64
+	bytesSent        uint64
 }
 
 func (s *Socket) Start() error {
@@ -198,28 +199,32 @@ func (s *Socket) envokeEvent(name, data string) {
 }
 
 func (s *Socket) processSendQueue() {
-	// go func() {
-	// 	for {
-	// 		time.Sleep(time.Second * 5)
-	// 		log.Println(s.bytesSent)
-	// 	}
-	// }()
+	go func() {
+		for {
+			time.Sleep(time.Second * 5)
+			log.Println("sent", s.bytesSent)
+		}
+	}()
 	// var printLock sync.Mutex
+	idle := true
 	for {
+		idle = true
+
 		if !s.connected {
 			break
 		}
 
-		// if s.bytesSent >= MAX_BUFFERED_BYTES {
-		// 	time.Sleep(time.Millisecond)
-		// 	continue
-		// }
+		if s.bytesSent >= MAX_BUFFERED_BYTES {
+			time.Sleep(time.Millisecond)
+			continue
+		}
 
 		s.buffer.queue.Range(func(i, queue interface{}) bool {
 			if queue != nil {
 				if queue, ok := queue.(*BuffQueue); ok {
 					if frame := queue.next(); frame != nil {
 						rawBytes(s, frame)
+						idle = false
 					} else {
 						if i, iok := i.(int); iok {
 							s.buffer.clean(i)
@@ -234,7 +239,9 @@ func (s *Socket) processSendQueue() {
 			return true
 		})
 
-		// s.buffer.clear()
+		if !idle {
+			s.buffer.clear()
+		}
 
 		// printLock.Lock()
 		// log.Println(s.buffer.queue)
@@ -318,6 +325,9 @@ func (s *Socket) listen() {
 			raw(s, []byte{}, FRAME_TYPE_HEARTBEAT_ACK)
 		case byte(FRAME_TYPE_HEARTBEAT_ACK):
 			s.lastHeartbeatAck = time.Now().UnixNano() / 1000000
+		case byte(FRAME_TYPE_READY):
+			log.Println("server is ready to receive")
+			s.bytesSent = 0
 		default:
 			log.Fatalln("unknown frame type", frameType, payload)
 		}
@@ -420,7 +430,7 @@ func emit(socket *Socket, event string, data []byte) error {
 		// log.Println("buff", buff)
 
 		socket.buffer.append(int(seq), buff)
-		time.Sleep(time.Microsecond * 500)
+		// time.Sleep(time.Microsecond * 500)
 	}
 
 	// log.Println("finished sending", dataLen, "bytes")
@@ -513,10 +523,13 @@ func raw(socket *Socket, data []byte, frameType FrameType) {
 			}
 
 			socket.buffer.append(int(seq), buff)
+
+			socket.bytesSent += uint64(len(buff))
 		}
 	} else {
 		header[4] = 2
 		socket.buffer.append(int(seq), header)
+		socket.bytesSent += uint64(len(header))
 	}
 }
 
@@ -526,7 +539,7 @@ func rawBytes(socket *Socket, frame []byte) {
 		log.Println("rawBytes err", frame[:6], err)
 		return
 	}
-	// socket.bytesSent += uint64(len(frame))
+	socket.bytesSent += uint64(len(frame))
 }
 
 func send(socket *Socket, event, data string) {

@@ -16,10 +16,12 @@ import (
 type FrameType byte
 
 const (
+	MAX_BUFFERED_BYTES       uint64    = 1024 * 32
 	FRAME_SIZE               int       = 4096
 	FRAME_TYPE_MESSAGE       FrameType = 90
 	FRAME_TYPE_HEARTBEAT     FrameType = 91
 	FRAME_TYPE_HEARTBEAT_ACK FrameType = 92
+	FRAME_TYPE_READY         FrameType = 93
 )
 
 const (
@@ -36,6 +38,7 @@ type Socket struct {
 	server           *Server
 	connected        bool
 	lastHeartbeatAck int64
+	bytesReceived    uint64
 }
 
 type Server struct {
@@ -192,7 +195,7 @@ func (s *Socket) startHeartbeat() {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
-	// log.Printf("Accepted connection from %v\n", conn.RemoteAddr().String())
+	log.Printf("Accepted connection from %v\n", conn.RemoteAddr().String())
 	socket := s.addSocket(conn)
 	s.connectEvent(socket)
 	// go socket.startHeartbeat()
@@ -203,6 +206,16 @@ func (s *Socket) listen() {
 	sockBuffer := bufio.NewReader(s.connection)
 
 	batchQueue := map[int][]byte{}
+
+	go func() {
+		for {
+			time.Sleep(time.Second * 5)
+			if !s.connected {
+				break
+			}
+			log.Println("received", s.bytesReceived)
+		}
+	}()
 
 	for {
 		if !s.connected {
@@ -234,6 +247,14 @@ func (s *Socket) listen() {
 
 		if !s.connected {
 			break
+		}
+
+		s.bytesReceived += uint64(n + 6)
+
+		if s.bytesReceived >= MAX_BUFFERED_BYTES {
+			log.Println("reached max buff size... resetting now")
+			s.bytesReceived = 0
+			raw(s, []byte{}, FRAME_TYPE_READY)
 		}
 
 		frameType := header[5]

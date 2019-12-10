@@ -45,10 +45,10 @@ func main() {
 		socket.On("test2", func(data string) {
 			// c := bytes.Count([]byte(data), []byte{2})
 			lenn := len(data)
-			if lenn != mbToInt("15k") {
+			if lenn != mbToInt("30m") {
 				log.Fatalln("test2 len mismatch", lenn)
 			}
-			log.Println("test2:", lenn)
+			log.Println(">>> test2:", lenn)
 		})
 		socket.On("test3", func(data string) {
 			// c := bytes.Count([]byte(data), []byte{2})
@@ -56,7 +56,7 @@ func main() {
 			if lenn != mbToInt("4k") {
 				log.Fatalln("test3 len mismatch", lenn)
 			}
-			log.Println("test3:", lenn)
+			log.Println(">>> test3:", lenn)
 		})
 		socket.On("test4", func(data string) {
 			// c := bytes.Count([]byte(data), []byte{2})
@@ -64,7 +64,7 @@ func main() {
 			if lenn != mbToInt("15b") {
 				log.Fatalln("test4 len mismatch", lenn)
 			}
-			log.Println("test4:", lenn)
+			log.Println(">>> test4:", lenn)
 		})
 		socket.On("test5", func(data string) {
 			// c := bytes.Count([]byte(data), []byte{2})
@@ -72,7 +72,7 @@ func main() {
 			if lenn != mbToInt("7k") {
 				log.Fatalln("test5 len mismatch", lenn)
 			}
-			log.Println("test5:", lenn)
+			log.Println(">>> test5:", lenn)
 		})
 	})
 
