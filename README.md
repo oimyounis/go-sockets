@@ -119,6 +119,6 @@ All contributions are welcome.
 You are very welcome to submit a new feature, fix a bug or an optimization to the code.  
 ### To Contribute:
 1. Fork this repo.
-2. Create a new branch with a discriptive name (example: *feature/some-new-function* or *bugfix/fix-something-somewhere*).
+2. Create a new branch with a descriptive name (example: *feature/some-new-function* or *bugfix/fix-something-somewhere*).
 3. Commit and push your code to your new branch.
 4. Create a new Pull Request here.  
